@@ -4,6 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as SecureStore from 'expo-secure-store'; // Import this
 import { COLORS } from "../constants/theme";
+
 // Import the hook directly (like Vendor App)
 import { useVerifyOtp } from "../services/auth/auth.queries";
 import { useAuth } from "../context/authContext";

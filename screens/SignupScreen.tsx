@@ -16,7 +16,7 @@ export default function SignupScreen() {
     phone: "",
     address: "",
     password: "",
-    role:"RIDER",
+    role:"DISPATCHER",
     terms:true
   });
   
@@ -31,11 +31,9 @@ export default function SignupScreen() {
     try {
       // We pass the data to your existing Auth Context
     const response =  await register({
-        ...formData,
-        address:formData.address || "Warri",
-        role: "DISPATCHER",
-        terms:true 
-      });
+      ...formData,
+      role:"DISPATCHER"
+    })
       // Context will auto-redirect if successful, or you can navigate to Login
       Alert.alert("Success", "Account created! Please Verify OTP.");
       navigation.navigate("OtpVerification", {
