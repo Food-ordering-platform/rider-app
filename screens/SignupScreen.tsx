@@ -16,6 +16,8 @@ export default function SignupScreen() {
     phone: "",
     address: "",
     password: "",
+    role:"RIDER",
+    terms:true
   });
   
   const [loading, setLoading] = useState(false);
