@@ -30,15 +30,18 @@ export default function SignupScreen() {
     setLoading(true);
     try {
       // We pass the data to your existing Auth Context
-      await register({
+    const response =  await register({
         ...formData,
         address:formData.address || "Warri",
         role: "DISPATCHER",
-        terms:true // Important: Flag them as a Dispatcher
+        terms:true 
       });
       // Context will auto-redirect if successful, or you can navigate to Login
       Alert.alert("Success", "Account created! Please Verify OTP.");
-      navigation.navigate("OtpVerification");
+      navigation.navigate("OtpVerification", {
+        token: response.token,
+        email:formData.email
+      });
     } catch (error: any) {
       Alert.alert("Registration Failed", error?.response?.data?.message || "Could not create account");
     } finally {
