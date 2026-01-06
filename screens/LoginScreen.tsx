@@ -13,18 +13,32 @@ export default function LoginScreen({ navigation } : any) {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = async () => {
+ const handleLogin = async () => {
     if (!email || !password) return Alert.alert("Error", "Please enter email and password");
     
     setLoading(true);
     try {
-      await login({ email, password });
+      // Capture the response
+      const response = await login({ email, password });
+      // Check if OTP is required
+      if (response?.requireOtp && response?.token) {
+        setLoading(false); // Stop spinner
+        // Navigate to OTP screen with the temp token
+        navigation.navigate("OtpVerification", { 
+          token: response.token, 
+          email: email 
+        });
+        return;
+      }
+      // If no OTP needed, handles the redirect to Dashboard
+      navigation.navigate("Dashboard")
     } catch (error: any) {
       Alert.alert("Login Failed", error?.response?.data?.message || "Invalid credentials");
     } finally {
       setLoading(false);
     }
   };
+
 
   return (
     <SafeAreaView style={styles.container}>

@@ -37,8 +37,8 @@ export default function SignupScreen() {
         terms:true // Important: Flag them as a Dispatcher
       });
       // Context will auto-redirect if successful, or you can navigate to Login
-      Alert.alert("Success", "Account created! Please log in.");
-      navigation.navigate("Login");
+      Alert.alert("Success", "Account created! Please Verify OTP.");
+      navigation.navigate("OtpVerification");
     } catch (error: any) {
       Alert.alert("Registration Failed", error?.response?.data?.message || "Could not create account");
     } finally {

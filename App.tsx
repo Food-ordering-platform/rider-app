@@ -17,6 +17,7 @@ import ProfileScreen from "./screens/ProfileScreen";
 import OrderDetailsScreen from "./screens/OrderDetailsScreen";
 import SignupScreen from "./screens/SignupScreen";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import OtpVerificationScreen from "./screens/OtpVerificationScreen";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -119,6 +120,7 @@ function NavigationContent() {
           <>
             <Stack.Screen name="Login" component={LoginScreen} />
             <Stack.Screen name="SignUp" component={SignupScreen} />
+            <Stack.Screen name="OtpVerification" component={OtpVerificationScreen} />
           </>
         )}
       </Stack.Navigator>
