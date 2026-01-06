@@ -5,7 +5,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { COLORS } from "../constants/theme";
 import { useAuth } from "../context/authContext";
 
-export default function LoginScreen() {
+// 1. Added 'navigation' to props here
+export default function LoginScreen({ navigation } : any) {
   const { login } = useAuth();
   
   const [email, setEmail] = useState("");
@@ -17,9 +18,7 @@ export default function LoginScreen() {
     
     setLoading(true);
     try {
-      // NOTE: Ensure your authContext login function expects { email, password }
       await login({ email, password });
-      // Navigation is handled by App.tsx automatically when isAuthenticated becomes true
     } catch (error: any) {
       Alert.alert("Login Failed", error?.response?.data?.message || "Invalid credentials");
     } finally {
@@ -82,14 +81,13 @@ export default function LoginScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* FOOTER */}
+          {/* FOOTER - UPDATED SECTION */}
           <View style={styles.footer}>
-            <Text style={styles.footerText}>Need to become a partner? </Text>
-            <TouchableOpacity>
-               <Text style={styles.linkText}>Contact Support</Text>
+            <Text style={styles.footerText}>Don&apos;t have an account? </Text>
+            <TouchableOpacity onPress={() => navigation.navigate('SignUp')}>
+               <Text style={styles.linkText}>Sign Up</Text>
             </TouchableOpacity>
           </View>
-
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>

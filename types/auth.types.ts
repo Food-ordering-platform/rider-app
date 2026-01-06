@@ -7,15 +7,16 @@ export interface RegisterData {
   name: string;
   email: string;
   password: string;
-  phone: string; // Phone is usually mandatory for vendors
-  role: "VENDOR"; // Strict typing for this app
-  terms: boolean
+  phone: string;
+  address: string;          
+  role: "DISPATCHER" | "RIDER" | "VENDOR"; 
+  terms: boolean;
 }
 
 export interface LoginData {
   email: string;
   password: string;
-  clientType?: "web" | "mobile"; // <--- ADDED 
+  clientType?: "web" | "mobile";
 }
 
 export interface VerifyOtpPayload {
