@@ -1,70 +1,85 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl, StatusBar, Image, Alert } from "react-native";
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl, StatusBar, ActivityIndicator, Alert, Share } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS } from "../constants/theme";
 import { useNavigation } from "@react-navigation/native";
 import { useSocket } from "../context/socketContext";
 import { useAuth } from "../context/authContext";
-
-// Interface for our Order Request
-interface OrderRequest {
-  id: string;
-  vendor: string;
-  vendorAddress: string;
-  customerAddress: string;
-  amount: number;
-  time: string;
-  status: string;
-}
+import { useQueryClient } from "@tanstack/react-query";
+import { useDispatcherDashboard, useAcceptOrder } from "../services/dispatch/dispatch.queries";
+import { DispatcherDashboardData, DispatcherOrderRequest } from "../types/dispatch.types";
 
 export default function DashboardScreen() {
   const navigation = useNavigation<any>();
   const { user } = useAuth();
   const { socket } = useSocket();
-  
-  const [requests, setRequests] = useState<OrderRequest[]>([]);
-  const [refreshing, setRefreshing] = useState(false);
+  const queryClient = useQueryClient();
+
+  // 1. React Query Hooks
+  const { data, isLoading, refetch, isRefetching } = useDispatcherDashboard();
+  const acceptOrderMutation = useAcceptOrder();
+
   const [isConnected, setIsConnected] = useState(false);
 
-  // 1. Listen for Live Orders
+  // 2. Real-Time Socket Listeners
   useEffect(() => {
     if (!socket) return;
-
     setIsConnected(socket.connected);
 
-    socket.on("connect", () => setIsConnected(true));
+    socket.on("connect", () => {
+      setIsConnected(true);
+      // Join the 'dispatchers' room to get alerts
+      socket.emit("join_room", "dispatchers");
+    });
+
     socket.on("disconnect", () => setIsConnected(false));
 
-    // The Event we emitted from Backend
-    socket.on("new_dispatcher_request", (data: any) => {
-      console.log("🔔 New Order Received:", data);
+    // Handle New Order (Optimistic Update)
+    socket.on("new_dispatcher_request", (payload: any) => {
+      console.log("🔔 New Order for Dispatcher:", payload);
       
-      const newOrder: OrderRequest = {
-        id: data.orderId,
-        vendor: data.restaurantName,
-        vendorAddress: data.restaurantAddress || "Warri",
-        customerAddress: data.customerAddress,
-        amount: data.totalAmount,
+      const newOrder: DispatcherOrderRequest = {
+        id: payload.orderId,
+        vendor: payload.restaurantName,
+        vendorAddress: payload.restaurantAddress || "Warri",
+        customerAddress: payload.customerAddress,
+        amount: payload.totalAmount, 
         time: "Just Now",
-        status: data.status
+        status: payload.status
       };
 
-      // Add to top of list
-      setRequests((prev) => [newOrder, ...prev]);
+      // Update Cache Immediately
+      queryClient.setQueryData<DispatcherDashboardData>(['dispatcherDashboard'], (oldData) => {
+        if (!oldData) return undefined;
+        return {
+          ...oldData,
+          requests: [newOrder, ...oldData.requests]
+        };
+      });
     });
 
     return () => {
       socket.off("new_dispatcher_request");
     };
-  }, [socket]);
+  }, [socket, queryClient]);
 
-  // Mock initial fetch
-  const fetchOrders = async () => {
-    setRefreshing(true);
-    // TODO: Call API to get pending orders
-    setTimeout(() => setRefreshing(false), 1000);
+  const handleAcceptOrder = (orderId: string) => {
+    acceptOrderMutation.mutate({ orderId });
   };
+
+  const handleShareLink = async (trackingId: string) => {
+    try {
+      // Allow Dispatcher to share the Rider Link
+      await Share.share({
+        message: `New Delivery Task! 🛵\n\nClick to view details: https://choweazy.com/rider-task/${trackingId}`,
+      });
+    } catch (error: any) {
+      Alert.alert(error.message);
+    }
+  };
+
+  // --- Render Helpers ---
 
   const renderHeader = () => (
     <View style={styles.header}>
@@ -77,8 +92,8 @@ export default function DashboardScreen() {
                 <View style={[styles.connectedBadge, { backgroundColor: '#FECACA' }]}><Text style={[styles.connectedText, {color: 'red'}]}>OFFLINE</Text></View>
             )}
         </View>
-        <Text style={styles.greeting}>Hello, {user?.name?.split(' ')[0] || "Partner"}</Text>
-        <Text style={styles.subGreeting}>Here is what&apos;s happening today.</Text>
+        <Text style={styles.greeting}>Hello, {user?.name?.split(' ')[0] || "Dispatcher"}</Text>
+        <Text style={styles.subGreeting}>Manage your fleet and orders.</Text>
       </View>
       <TouchableOpacity style={styles.profileBtn} onPress={() => navigation.navigate("Profile")}>
         <Ionicons name="person" size={20} color="white" />
@@ -86,33 +101,36 @@ export default function DashboardScreen() {
     </View>
   );
 
-  const renderStats = () => (
-    <View style={styles.statsContainer}>
-      <View style={[styles.statCard, { backgroundColor: COLORS.primary }]}>
-        <View style={styles.statIconCircle}>
-            <Ionicons name="bicycle" size={20} color={COLORS.primary} />
+  const renderStats = () => {
+    const stats = data?.stats || { completed: 0, revenue: 0, active: 0 };
+    return (
+      <View style={styles.statsContainer}>
+        <View style={[styles.statCard, { backgroundColor: COLORS.primary }]}>
+          <View style={styles.statIconCircle}>
+              <Ionicons name="bicycle" size={20} color={COLORS.primary} />
+          </View>
+          <Text style={styles.statNumber}>{stats.active}</Text>
+          <Text style={styles.statLabel}>Pending</Text>
         </View>
-        <Text style={styles.statNumber}>8</Text>
-        <Text style={styles.statLabel}>Active Riders</Text>
-      </View>
-      
-      <View style={[styles.statCard, { backgroundColor: '#10B981' }]}>
-        <View style={[styles.statIconCircle, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
-            <Ionicons name="checkmark" size={20} color="white" />
+        
+        <View style={[styles.statCard, { backgroundColor: '#10B981' }]}>
+          <View style={[styles.statIconCircle, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+              <Ionicons name="checkmark" size={20} color="white" />
+          </View>
+          <Text style={styles.statNumber}>{stats.completed}</Text>
+          <Text style={styles.statLabel}>Completed</Text>
         </View>
-        <Text style={styles.statNumber}>24</Text>
-        <Text style={styles.statLabel}>Completed</Text>
-      </View>
 
-      <View style={[styles.statCard, { backgroundColor: '#F59E0B' }]}>
-        <View style={[styles.statIconCircle, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
-            <Ionicons name="wallet" size={20} color="white" />
+        <View style={[styles.statCard, { backgroundColor: '#F59E0B' }]}>
+          <View style={[styles.statIconCircle, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+              <Ionicons name="wallet" size={20} color="white" />
+          </View>
+          <Text style={styles.statNumber}>₦{stats.revenue.toLocaleString()}</Text>
+          <Text style={styles.statLabel}>Revenue</Text>
         </View>
-        <Text style={styles.statNumber}>₦45k</Text>
-        <Text style={styles.statLabel}>Revenue</Text>
       </View>
-    </View>
-  );
+    );
+  };
 
   const renderEmptyState = () => (
     <View style={styles.emptyContainer}>
@@ -125,27 +143,35 @@ export default function DashboardScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <StatusBar barStyle="dark-content" />
+      
+      {acceptOrderMutation.isPending && (
+        <View style={styles.loadingOverlay}>
+            <ActivityIndicator size="large" color={COLORS.primary} />
+        </View>
+      )}
+
       <FlatList
         ListHeaderComponent={
           <View style={styles.paddingContainer}>
             {renderHeader()}
             {renderStats()}
             <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Live Requests</Text>
+                <Text style={styles.sectionTitle}>Incoming Requests</Text>
                 <View style={styles.liveIndicator}>
                     <View style={styles.liveDot} />
-                    <Text style={styles.liveText}>Listening...</Text>
+                    <Text style={styles.liveText}>Live</Text>
                 </View>
             </View>
           </View>
         }
-        data={requests}
+        data={data?.requests || []}
         keyExtractor={item => item.id}
         renderItem={({ item }) => (
           <TouchableOpacity 
             style={styles.card}
-            activeOpacity={0.7}
-            onPress={() => navigation.navigate('OrderDetails', { orderId: item.id })}
+            activeOpacity={0.9}
+            // Navigate to Details if needed
+             onPress={() => navigation.navigate('OrderDetails', { orderId: item.id })}
           >
             <View style={styles.cardHeader}>
                 <View style={styles.vendorInfo}>
@@ -173,9 +199,7 @@ export default function DashboardScreen() {
                 <View style={styles.locationText}>
                     <Text style={styles.addressTitle}>Pickup</Text>
                     <Text style={styles.addressText} numberOfLines={1}>{item.vendorAddress}</Text>
-                    
                     <View style={{ height: 12 }} />
-                    
                     <Text style={styles.addressTitle}>Drop-off</Text>
                     <Text style={styles.addressText} numberOfLines={1}>{item.customerAddress}</Text>
                 </View>
@@ -183,16 +207,34 @@ export default function DashboardScreen() {
 
             <View style={styles.actionFooter}>
                 <Text style={styles.statusText}>{item.status.replace('_', ' ')}</Text>
-                <View style={styles.assignBtn}>
-                    <Text style={styles.assignBtnText}>Assign Rider</Text>
-                    <Ionicons name="arrow-forward" size={14} color="white" />
-                </View>
+                
+                {/* LOGIC: If order has no trackingId (not accepted yet), show Accept.
+                   If it has trackingId (already accepted), show Share.
+                */}
+                {!item.trackingId ? (
+                   <TouchableOpacity 
+                      style={styles.assignBtn}
+                      onPress={() => handleAcceptOrder(item.id)}
+                   >
+                      <Text style={styles.assignBtnText}>Accept & Assign</Text>
+                      <Ionicons name="arrow-forward" size={14} color="white" />
+                   </TouchableOpacity>
+                ) : (
+                   <TouchableOpacity 
+                      style={[styles.assignBtn, { backgroundColor: '#10B981' }]}
+                      onPress={() => handleShareLink(item.trackingId!)}
+                   >
+                      <Text style={styles.assignBtnText}>Share Link</Text>
+                      <Ionicons name="share-social" size={14} color="white" />
+                   </TouchableOpacity>
+                )}
             </View>
           </TouchableOpacity>
         )}
-        ListEmptyComponent={renderEmptyState}
+        ListEmptyComponent={!isLoading ? renderEmptyState : null}
+        ListFooterComponent={isLoading ? <ActivityIndicator style={{marginTop: 50}} /> : null}
         contentContainerStyle={{ paddingBottom: 40 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={fetchOrders} tintColor={COLORS.primary} />}
+        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={COLORS.primary} />}
       />
     </SafeAreaView>
   );
@@ -201,7 +243,6 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F3F4F6' },
   paddingContainer: { padding: 20 },
-  
   header: { marginBottom: 25, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   dateRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 5 },
   date: { fontSize: 13, color: '#6B7280', fontWeight: '600', textTransform: 'uppercase', marginRight: 10 },
@@ -223,7 +264,6 @@ const styles = StyleSheet.create({
   liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'red', marginRight: 5 },
   liveText: { fontSize: 12, color: 'red', fontWeight: '600' },
 
-  // Card Styles
   card: { backgroundColor: 'white', borderRadius: 20, padding: 16, marginBottom: 16, shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 10, elevation: 3 },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   vendorInfo: { flexDirection: 'row', alignItems: 'center', flex: 1 },
@@ -250,5 +290,6 @@ const styles = StyleSheet.create({
 
   emptyContainer: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
   emptyText: { fontSize: 16, fontWeight: '700', color: '#9CA3AF', marginTop: 10 },
-  emptySubText: { fontSize: 13, color: '#D1D5DB' }
+  emptySubText: { fontSize: 13, color: '#D1D5DB' },
+  loadingOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(255,255,255,0.7)', alignItems: 'center', justifyContent: 'center', zIndex: 100 }
 });
