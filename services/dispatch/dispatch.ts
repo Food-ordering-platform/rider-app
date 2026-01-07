@@ -6,16 +6,17 @@ import {
 } from "../../types/dispatch.types";
 
 export const dispatcherService = {
-  // 1. Get Dashboard (Stats + Available Orders)
+  // 1. Get Dashboard
+  // Backend Route: /api/dispatch/dashboard
   getDashboard: async (): Promise<DispatcherDashboardData> => {
-    // Updated endpoint to match "dispatcher" terminology
-    const response = await api.get("/logistics/dispatcher/dashboard");
+    const response = await api.get("/dispatch/dashboard");
     return response.data.data;
   },
 
-  // 2. Accept Order (Claim it so you can share the link)
+  // 2. Accept Order
+  // Backend Route: /api/dispatch/rider/accept
   acceptOrder: async (payload: AcceptOrderPayload): Promise<AcceptOrderResponse> => {
-    const response = await api.post("/logistics/dispatcher/accept", payload);
+    const response = await api.post("/dispatch/rider/accept", payload);
     return response.data;
   }
 };

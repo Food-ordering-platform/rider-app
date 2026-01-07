@@ -1,25 +1,32 @@
 export interface DispatcherStats {
-  completed: number;
-  revenue: number;
-  active: number;
+  totalJobs: number;
+  hoursOnline: number;
+  rating: number;
 }
 
-export interface DispatcherOrderRequest {
+export interface DispatcherOrder {
   id: string;
-  vendor: string;
-  vendorAddress: string;
-  customerAddress: string;
-  amount: number;
-  time: string;
   status: string;
-  // Added these so the Dispatcher can see them after accepting
-  trackingId?: string; 
-  deliveryCode?: string;
+  deliveryFee: number;
+  trackingId: string | null;
+  vendor: {
+    name: string;
+    address: string;
+    phone: string;
+  };
+  customer: {
+    name: string;
+    address: string;
+    phone: string;
+  };
 }
 
 export interface DispatcherDashboardData {
+  partnerName: string;
+  availableBalance: number;
+  pendingBalance: number;
   stats: DispatcherStats;
-  requests: DispatcherOrderRequest[];
+  activeOrders: DispatcherOrder[]; // Renamed from 'requests' to match backend
 }
 
 export interface AcceptOrderPayload {

@@ -1,4 +1,5 @@
 import React from "react";
+import { View, ActivityIndicator, Image, StyleSheet } from "react-native"; // Added imports
 import { NavigationContainer } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
@@ -6,7 +7,8 @@ import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS } from "./constants/theme";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { AuthProvider, useAuth } from "./context/authContext"; // Reused from vendor-app
+import { AuthProvider, useAuth } from "./context/authContext"; 
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 // Screens
 import LoginScreen from "./screens/LoginScreen";
@@ -16,14 +18,27 @@ import WalletScreen from "./screens/WalletScreen";
 import ProfileScreen from "./screens/ProfileScreen";
 import OrderDetailsScreen from "./screens/OrderDetailsScreen";
 import SignupScreen from "./screens/SignupScreen";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import OtpVerificationScreen from "./screens/OtpVerificationScreen";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 const queryClient = new QueryClient();
 
-// --- BOTTOM TABS ---
+// --- 1. THE NEW "SPLASH" LOADING SCREEN ---
+function LoadingScreen() {
+  return (
+    <View style={styles.loadingContainer}>
+      {/* You can use your app logo here */}
+      <Image 
+        source={require('./assets/images/icon.png')} // Make sure this path exists or use a text
+        style={{ width: 100, height: 100, marginBottom: 20, resizeMode: 'contain' }} 
+      />
+      <ActivityIndicator size="large" color={COLORS.primary} />
+    </View>
+  );
+}
+
+// --- BOTTOM TABS (Unchanged) ---
 function DispatcherTabs() {
   return (
     <Tab.Navigator
@@ -48,11 +63,7 @@ function DispatcherTabs() {
         component={DashboardScreen}
         options={{
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? "grid" : "grid-outline"}
-              size={24}
-              color={color}
-            />
+            <Ionicons name={focused ? "grid" : "grid-outline"} size={24} color={color} />
           ),
         }}
       />
@@ -62,11 +73,7 @@ function DispatcherTabs() {
         options={{
           tabBarLabel: "On Road",
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? "bicycle" : "bicycle-outline"}
-              size={24}
-              color={color}
-            />
+            <Ionicons name={focused ? "bicycle" : "bicycle-outline"} size={24} color={color} />
           ),
         }}
       />
@@ -75,11 +82,7 @@ function DispatcherTabs() {
         component={WalletScreen}
         options={{
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? "wallet" : "wallet-outline"}
-              size={24}
-              color={color}
-            />
+            <Ionicons name={focused ? "wallet" : "wallet-outline"} size={24} color={color} />
           ),
         }}
       />
@@ -88,11 +91,7 @@ function DispatcherTabs() {
         component={ProfileScreen}
         options={{
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? "business" : "business-outline"}
-              size={24}
-              color={color}
-            />
+            <Ionicons name={focused ? "business" : "business-outline"} size={24} color={color} />
           ),
         }}
       />
@@ -102,10 +101,13 @@ function DispatcherTabs() {
 
 // --- MAIN NAVIGATION ---
 function NavigationContent() {
-  const { isAuthenticated, user } = useAuth();
+  // 2. Destructure `isLoading` from your Auth Context
+  const { isAuthenticated, isLoading } = useAuth();
 
-  // Logic: Ensure only Dispatchers can enter
-  // const isDispatcher = user?.role === 'DISPATCHER';
+  // 3. SHOW LOADING SCREEN WHILE CHECKING SESSION
+  if (isLoading) {
+    return <LoadingScreen />;
+  }
 
   return (
     <NavigationContainer>
@@ -139,3 +141,13 @@ export default function App() {
     </QueryClientProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});
+

@@ -20,10 +20,10 @@ export const useAcceptOrder = () => {
 
   return useMutation<AcceptOrderResponse, Error, AcceptOrderPayload>({
     mutationFn: dispatcherService.acceptOrder,
-    onSuccess: (data) => {
-      // Refresh dashboard to show the accepted order in "Active" or update stats
+    onSuccess: () => {
+      // Refresh dashboard to show the updated status or move order to "Accepted" list
       queryClient.invalidateQueries({ queryKey: ['dispatcherDashboard'] });
-      Alert.alert("Success", "Order Accepted! You can now share the link with a rider.");
+      Alert.alert("Success", "Order Accepted! You can now share the link.");
     },
     onError: (error: any) => {
       const msg = error?.response?.data?.message || error.message || "Failed to accept order";
