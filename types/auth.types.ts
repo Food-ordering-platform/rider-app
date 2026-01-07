@@ -1,7 +1,7 @@
 
 //-----------DATA OR REQUEST SENT TO THE BACKEND (REQUEST PAYLOADS)-----------//
 
-// import { Restaurant } from "./restaurant.types";
+import { Restaurant } from "./restaurant.types";
 
 export interface RegisterData {
   name: string;
@@ -49,7 +49,7 @@ export interface User {
   email: string;
   role: string;
   phone?: string;
-//   restaurant?: Restaurant | null; 
+  restaurant?: Restaurant | null; 
 }
 
 
