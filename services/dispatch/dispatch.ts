@@ -16,7 +16,7 @@ export const dispatcherService = {
   // 2. Accept Order
   // Backend Route: /api/dispatch/rider/accept
   acceptOrder: async (payload: AcceptOrderPayload): Promise<AcceptOrderResponse> => {
-    const response = await api.post("/dispatch/rider/accept", payload);
+    const response = await api.post("/dispatch/accept", payload);
     return response.data;
   }
 };

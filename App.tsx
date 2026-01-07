@@ -7,8 +7,9 @@ import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS } from "./constants/theme";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { AuthProvider, useAuth } from "./context/authContext"; 
+import { AuthProvider, useAuth } from "./context/authContext";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { SocketProvider } from "./context/socketContext";
 
 // Screens
 import LoginScreen from "./screens/LoginScreen";
@@ -29,9 +30,14 @@ function LoadingScreen() {
   return (
     <View style={styles.loadingContainer}>
       {/* You can use your app logo here */}
-      <Image 
-        source={require('./assets/images/icon.png')} // Make sure this path exists or use a text
-        style={{ width: 100, height: 100, marginBottom: 20, resizeMode: 'contain' }} 
+      <Image
+        source={require("./assets/images/icon.png")} // Make sure this path exists or use a text
+        style={{
+          width: 100,
+          height: 100,
+          marginBottom: 20,
+          resizeMode: "contain",
+        }}
       />
       <ActivityIndicator size="large" color={COLORS.primary} />
     </View>
@@ -63,7 +69,11 @@ function DispatcherTabs() {
         component={DashboardScreen}
         options={{
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? "grid" : "grid-outline"} size={24} color={color} />
+            <Ionicons
+              name={focused ? "grid" : "grid-outline"}
+              size={24}
+              color={color}
+            />
           ),
         }}
       />
@@ -73,7 +83,11 @@ function DispatcherTabs() {
         options={{
           tabBarLabel: "On Road",
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? "bicycle" : "bicycle-outline"} size={24} color={color} />
+            <Ionicons
+              name={focused ? "bicycle" : "bicycle-outline"}
+              size={24}
+              color={color}
+            />
           ),
         }}
       />
@@ -82,7 +96,11 @@ function DispatcherTabs() {
         component={WalletScreen}
         options={{
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? "wallet" : "wallet-outline"} size={24} color={color} />
+            <Ionicons
+              name={focused ? "wallet" : "wallet-outline"}
+              size={24}
+              color={color}
+            />
           ),
         }}
       />
@@ -91,7 +109,11 @@ function DispatcherTabs() {
         component={ProfileScreen}
         options={{
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? "business" : "business-outline"} size={24} color={color} />
+            <Ionicons
+              name={focused ? "business" : "business-outline"}
+              size={24}
+              color={color}
+            />
           ),
         }}
       />
@@ -122,7 +144,10 @@ function NavigationContent() {
           <>
             <Stack.Screen name="Login" component={LoginScreen} />
             <Stack.Screen name="SignUp" component={SignupScreen} />
-            <Stack.Screen name="OtpVerification" component={OtpVerificationScreen} />
+            <Stack.Screen
+              name="OtpVerification"
+              component={OtpVerificationScreen}
+            />
           </>
         )}
       </Stack.Navigator>
@@ -135,7 +160,9 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <SafeAreaProvider>
         <AuthProvider>
-          <NavigationContent />
+          <SocketProvider>
+            <NavigationContent />
+          </SocketProvider>
         </AuthProvider>
       </SafeAreaProvider>
     </QueryClientProvider>
@@ -145,9 +172,8 @@ export default function App() {
 const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
   },
 });
-
