@@ -12,7 +12,6 @@ export default function WalletScreen() {
   const { data: wallet, isLoading, refetch } = useRiderWallet();
   const { mutate: withdraw, isPending: isWithdrawing } = useRequestWithdrawal();
 
-  // Modal State
   const [modalVisible, setModalVisible] = useState(false);
   const [amount, setAmount] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
@@ -20,7 +19,6 @@ export default function WalletScreen() {
   const [bankName, setBankName] = useState("");
 
   const openWithdrawModal = () => {
-    // Note: Using availableBalance based on your Types
     if (!wallet || wallet.availableBalance <= 0) return Alert.alert("Error", "Insufficient balance");
     setModalVisible(true);
   };
@@ -31,7 +29,6 @@ export default function WalletScreen() {
     if (withdrawAmount > (wallet?.availableBalance || 0)) return Alert.alert("Error", "Insufficient funds");
     if (!accountNumber || !accountName || !bankName) return Alert.alert("Error", "Please fill all bank details");
 
-    // Call API with Bank Details
     withdraw({
       amount: withdrawAmount,
       bankDetails: { bankName, accountNumber, accountName }
@@ -47,14 +44,21 @@ export default function WalletScreen() {
 
   const renderTransaction = ({ item }: { item: any }) => {
     const isCredit = item.type === 'CREDIT';
+    
+    // ✅ SAFER DATE FORMATTING
+    const dateObj = item.createdAt ? new Date(item.createdAt) : new Date();
+    const dateString = dateObj.toLocaleDateString(); 
+    const timeString = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
     return (
       <View style={styles.txnRow}>
         <View style={[styles.iconBox, { backgroundColor: isCredit ? '#DCFCE7' : '#FEE2E2' }]}>
           <Ionicons name={isCredit ? "arrow-down" : "arrow-up"} size={18} color={isCredit ? COLORS.success : COLORS.danger} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.txnDesc}>{item.description}</Text>
-          <Text style={styles.txnDate}>{new Date(item.createdAt).toLocaleDateString()}</Text>
+          {/* ✅ Uses 'description' to match backend */}
+          <Text style={styles.txnDesc} numberOfLines={1}>{item.description}</Text>
+          <Text style={styles.txnDate}>{dateString} • {timeString}</Text>
         </View>
         <Text style={[styles.txnAmount, { color: isCredit ? COLORS.success : COLORS.text }]}>
           {isCredit ? '+' : '-'}₦{item.amount.toLocaleString()}
@@ -82,7 +86,7 @@ export default function WalletScreen() {
         </View>
         <View style={styles.cardBottom}>
           <Text style={styles.accountText}>**** **** 8922</Text>
-          <TouchableOpacity style={styles.withdrawBtn} onPress={openWithdrawModal}>
+          <TouchableOpacity style={[styles.withdrawBtn, (wallet?.availableBalance || 0) <= 0 && {opacity: 0.6}]} onPress={openWithdrawModal} disabled={(wallet?.availableBalance || 0) <= 0}>
              <Text style={styles.withdrawText}>Withdraw</Text>
           </TouchableOpacity>
         </View>
@@ -93,22 +97,17 @@ export default function WalletScreen() {
       {/* HISTORY */}
       <View style={styles.historySection}>
         <Text style={styles.sectionTitle}>Recent Activity</Text>
-        {/* Note: Your API currently returns just WalletData object, 
-            you may need to ensure transactions are included in the response 
-            or fetch them separately if they are not in `wallet`. 
-            Assuming `wallet` has a `transactions` field based on previous context, 
-            but if strict types are followed, you might need a separate call/field.
-            For now, using wallet.transactions if available, or [] */}
         <FlatList
-          data={(wallet as any)?.transactions || []} 
-          keyExtractor={(item: any) => item.id}
+          data={wallet?.transactions || []} // ✅ Access transactions from wallet object
+          keyExtractor={(item) => item.id}
           renderItem={renderTransaction}
           refreshControl={<RefreshControl refreshing={isLoading} onRefresh={refetch} tintColor={COLORS.primary}/>}
           ListEmptyComponent={<Text style={styles.emptyText}>No transactions yet.</Text>}
+          contentContainerStyle={{ paddingBottom: 50 }}
         />
       </View>
 
-      {/* 🏦 WITHDRAWAL MODAL */}
+      {/* MODAL (Keep as is) */}
       <Modal animationType="slide" transparent={true} visible={modalVisible} onRequestClose={() => setModalVisible(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -118,32 +117,20 @@ export default function WalletScreen() {
                 <Ionicons name="close" size={24} color="#000" />
               </TouchableOpacity>
             </View>
-
             <Text style={styles.label}>Amount (₦)</Text>
-            <TextInput 
-                style={styles.input} 
-                keyboardType="numeric" 
-                placeholder="0.00" 
-                value={amount} 
-                onChangeText={setAmount} 
-            />
-
+            <TextInput style={styles.input} keyboardType="numeric" placeholder="0.00" value={amount} onChangeText={setAmount} />
             <Text style={styles.label}>Bank Name</Text>
             <TextInput style={styles.input} placeholder="e.g. GTBank" value={bankName} onChangeText={setBankName} />
-
             <Text style={styles.label}>Account Number</Text>
             <TextInput style={styles.input} keyboardType="numeric" placeholder="0123456789" value={accountNumber} onChangeText={setAccountNumber} maxLength={10} />
-
             <Text style={styles.label}>Account Name</Text>
             <TextInput style={styles.input} placeholder="Account Holder Name" value={accountName} onChangeText={setAccountName} />
-
             <TouchableOpacity style={styles.confirmBtn} onPress={handleConfirmWithdraw} disabled={isWithdrawing}>
               {isWithdrawing ? <ActivityIndicator color="white" /> : <Text style={styles.confirmBtnText}>Confirm Withdrawal</Text>}
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
       </Modal>
-
     </SafeAreaView>
   );
 }
@@ -171,8 +158,6 @@ const styles = StyleSheet.create({
   txnDate: { fontSize: 12, color: '#9CA3AF' },
   txnAmount: { fontSize: 15, fontWeight: '700' },
   emptyText: { textAlign: 'center', color: '#999', marginTop: 20 },
-  
-  // MODAL STYLES
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalContent: { backgroundColor: 'white', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
