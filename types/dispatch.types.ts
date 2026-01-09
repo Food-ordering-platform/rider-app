@@ -67,7 +67,7 @@ export interface WalletData {
   availableBalance: number;
   pendingBalance: number;
   currency: string;
-  transaction:Transaction[]
+  transactions:Transaction[]
 }
 
 export interface BankDetails {

@@ -1,3 +1,5 @@
+// food-ordering-platform/rider-app/rider-app-work-branch/screens/WalletScreen.tsx
+
 import React, { useState } from "react";
 import { 
   View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, 
@@ -7,6 +9,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS } from "../constants/theme";
 import { useRiderWallet, useRequestWithdrawal } from "../services/dispatch/dispatch.queries";
+import { Transaction } from "../types/dispatch.types";
 
 export default function WalletScreen() {
   const { data: wallet, isLoading, refetch } = useRiderWallet();
@@ -42,23 +45,21 @@ export default function WalletScreen() {
     });
   };
 
-  const renderTransaction = ({ item }: { item: any }) => {
+  const renderTransaction = ({ item }: { item: Transaction }) => {
     const isCredit = item.type === 'CREDIT';
     
-    // ✅ SAFER DATE FORMATTING
+    // Safely parse date
     const dateObj = item.createdAt ? new Date(item.createdAt) : new Date();
     const dateString = dateObj.toLocaleDateString(); 
-    const timeString = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
+    
     return (
       <View style={styles.txnRow}>
         <View style={[styles.iconBox, { backgroundColor: isCredit ? '#DCFCE7' : '#FEE2E2' }]}>
           <Ionicons name={isCredit ? "arrow-down" : "arrow-up"} size={18} color={isCredit ? COLORS.success : COLORS.danger} />
         </View>
         <View style={{ flex: 1 }}>
-          {/* ✅ Uses 'description' to match backend */}
-          <Text style={styles.txnDesc} numberOfLines={1}>{item.description}</Text>
-          <Text style={styles.txnDate}>{dateString} • {timeString}</Text>
+          <Text style={styles.txnDesc} numberOfLines={1}>{item.description || "Transaction"}</Text>
+          <Text style={styles.txnDate}>{dateString} • {item.status}</Text>
         </View>
         <Text style={[styles.txnAmount, { color: isCredit ? COLORS.success : COLORS.text }]}>
           {isCredit ? '+' : '-'}₦{item.amount.toLocaleString()}
@@ -81,12 +82,18 @@ export default function WalletScreen() {
           <View>
             <Text style={styles.cardLabel}>Available Balance</Text>
             <Text style={styles.cardBalance}>₦{wallet?.availableBalance?.toLocaleString() || "0.00"}</Text>
+            {/* Added Pending Balance Display */}
+            <Text style={styles.pendingText}>Pending: ₦{wallet?.pendingBalance?.toLocaleString() || "0.00"}</Text>
           </View>
           <Ionicons name="wallet" size={32} color="rgba(255,255,255,0.8)" />
         </View>
         <View style={styles.cardBottom}>
           <Text style={styles.accountText}>**** **** 8922</Text>
-          <TouchableOpacity style={[styles.withdrawBtn, (wallet?.availableBalance || 0) <= 0 && {opacity: 0.6}]} onPress={openWithdrawModal} disabled={(wallet?.availableBalance || 0) <= 0}>
+          <TouchableOpacity 
+            style={[styles.withdrawBtn, (wallet?.availableBalance || 0) <= 0 && {opacity: 0.6}]} 
+            onPress={openWithdrawModal} 
+            disabled={(wallet?.availableBalance || 0) <= 0}
+          >
              <Text style={styles.withdrawText}>Withdraw</Text>
           </TouchableOpacity>
         </View>
@@ -98,7 +105,7 @@ export default function WalletScreen() {
       <View style={styles.historySection}>
         <Text style={styles.sectionTitle}>Recent Activity</Text>
         <FlatList
-          data={wallet?.transactions || []} // ✅ Access transactions from wallet object
+          data={wallet?.transactions || []} // ✅ Matches new Interface
           keyExtractor={(item) => item.id}
           renderItem={renderTransaction}
           refreshControl={<RefreshControl refreshing={isLoading} onRefresh={refetch} tintColor={COLORS.primary}/>}
@@ -107,7 +114,7 @@ export default function WalletScreen() {
         />
       </View>
 
-      {/* MODAL (Keep as is) */}
+      {/* MODAL */}
       <Modal animationType="slide" transparent={true} visible={modalVisible} onRequestClose={() => setModalVisible(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -119,12 +126,16 @@ export default function WalletScreen() {
             </View>
             <Text style={styles.label}>Amount (₦)</Text>
             <TextInput style={styles.input} keyboardType="numeric" placeholder="0.00" value={amount} onChangeText={setAmount} />
+            
             <Text style={styles.label}>Bank Name</Text>
             <TextInput style={styles.input} placeholder="e.g. GTBank" value={bankName} onChangeText={setBankName} />
+            
             <Text style={styles.label}>Account Number</Text>
             <TextInput style={styles.input} keyboardType="numeric" placeholder="0123456789" value={accountNumber} onChangeText={setAccountNumber} maxLength={10} />
+            
             <Text style={styles.label}>Account Name</Text>
             <TextInput style={styles.input} placeholder="Account Holder Name" value={accountName} onChangeText={setAccountName} />
+            
             <TouchableOpacity style={styles.confirmBtn} onPress={handleConfirmWithdraw} disabled={isWithdrawing}>
               {isWithdrawing ? <ActivityIndicator color="white" /> : <Text style={styles.confirmBtnText}>Confirm Withdrawal</Text>}
             </TouchableOpacity>
@@ -140,10 +151,11 @@ const styles = StyleSheet.create({
   loading: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   header: { marginBottom: 20 },
   title: { fontSize: 28, fontWeight: '800', color: '#111827' },
-  card: { backgroundColor: COLORS.primary, height: 180, borderRadius: 24, padding: 24, justifyContent: 'space-between', marginBottom: 30, overflow: 'hidden' },
+  card: { backgroundColor: COLORS.primary, height: 190, borderRadius: 24, padding: 24, justifyContent: 'space-between', marginBottom: 30, overflow: 'hidden' },
   cardTop: { flexDirection: 'row', justifyContent: 'space-between' },
   cardLabel: { color: 'rgba(255,255,255,0.8)', fontSize: 12, textTransform: 'uppercase', marginBottom: 4 },
   cardBalance: { color: 'white', fontSize: 36, fontWeight: '800' },
+  pendingText: { color: 'rgba(255,255,255,0.7)', fontSize: 13, marginTop: 5 },
   cardBottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   accountText: { color: 'rgba(255,255,255,0.6)', fontFamily: 'monospace' },
   withdrawBtn: { backgroundColor: 'white', paddingVertical: 8, paddingHorizontal: 16, borderRadius: 12 },
