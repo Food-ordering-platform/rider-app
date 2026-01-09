@@ -1,168 +1,271 @@
-import React, { useEffect, useState, useRef } from "react";
-import { View, Text, StyleSheet, Dimensions, TouchableOpacity, FlatList, Platform, Linking } from "react-native";
-import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
+import React, { useMemo, useState } from "react";
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Linking, RefreshControl, Dimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
-import { COLORS } from "../constants/theme";
-import { useSocket } from "../context/socketContext";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import MapView, { Marker, Polyline, PROVIDER_DEFAULT, PROVIDER_GOOGLE } from "react-native-maps";
+import { useDispatcherDashboard } from "../services/dispatch/dispatch.queries";
+import { getTimeAgo } from "../hooks/useGetTime";
 
-interface ActiveRider {
-  orderId: string;
-  riderName?: string;
-  latitude: number;
-  longitude: number;
-  status: 'MOVING' | 'IDLE';
-  lastUpdated: number;
-}
+const COLORS = { 
+  primary: "#7B1E3A", 
+  background: "#F9FAFB", 
+  success: "#10B981", 
+  text: "#1F2937",
+  textLight: "#6B7280",
+  white: "#FFFFFF",
+  warning: "#F59E0B"
+};
 
-export default function ActiveTripsScreen() {
-  const { socket } = useSocket();
-  const mapRef = useRef<MapView>(null);
-  const [activeRiders, setActiveRiders] = useState<Record<string, ActiveRider>>({});
+const { width, height } = Dimensions.get('window');
 
-  // 1. Listen for Rider Movement
-  useEffect(() => {
-    if (!socket) return;
+export default function ActiveTripScreen() {
+  const { data, refetch, isRefetching } = useDispatcherDashboard();
+  const [viewMode, setViewMode] = useState<'list' | 'map'>('list'); // 👈 Toggle State
 
-    socket.on("rider-moved", (data: any) => {
-      console.log("🚀 Map Update:", data);
-      
-      setActiveRiders((prev) => ({
-        ...prev,
-        [data.orderId]: {
-          orderId: data.orderId,
-          riderName: `Order #${data.orderId.slice(-4)}`,
-          latitude: data.lat,
-          longitude: data.lng,
-          status: 'MOVING',
-          lastUpdated: Date.now()
-        }
-      }));
-    });
+  const activeTrips = useMemo(() => {
+    return data?.activeOrders.filter(o => o.status === 'OUT_FOR_DELIVERY') || [];
+  }, [data]);
 
-    return () => {
-      socket.off("rider-moved");
-    };
-  }, [socket]);
-
-  // 2. Helper to Open Google Maps App (Free Navigation)
-  const openExternalMap = (lat: number, lng: number) => {
-    const scheme = Platform.select({ ios: 'maps:0,0?q=', android: 'geo:0,0?q=' });
-    const latLng = `${lat},${lng}`;
-    const url = Platform.select({
-      ios: `${scheme}Rider@${latLng}`,
-      android: `${scheme}${latLng}(Rider)`
-    });
-    if (url) Linking.openURL(url);
+  // --- ACTIONS ---
+  const handleCall = (phone?: string | null) => {
+    if (phone) Linking.openURL(`tel:${phone}`);
   };
 
-  const renderRiderCard = ({ item }: { item: ActiveRider }) => (
-    <TouchableOpacity 
-        style={styles.card}
-        onPress={() => {
-            mapRef.current?.animateToRegion({
-                latitude: item.latitude,
-                longitude: item.longitude,
-                latitudeDelta: 0.01,
-                longitudeDelta: 0.01
-            });
-        }}
-    >
-        <View style={styles.iconBox}>
-            <Ionicons name="bicycle" size={24} color={COLORS.primary} />
-        </View>
-        <View style={{ flex: 1 }}>
-            <Text style={styles.riderName}>{item.riderName}</Text>
-            <Text style={styles.status}>Active Now • {new Date(item.lastUpdated).toLocaleTimeString()}</Text>
-        </View>
-        <TouchableOpacity onPress={() => openExternalMap(item.latitude, item.longitude)}>
-             <Ionicons name="navigate-circle" size={32} color={COLORS.primary} />
-        </TouchableOpacity>
-    </TouchableOpacity>
-  );
+  const handleOpenRoute = (vendor: any, customer: any) => {
+    if (vendor.latitude && vendor.longitude && customer.latitude && customer.longitude) {
+        const url = `https://www.google.com/maps/dir/?api=1&origin=${vendor.latitude},${vendor.longitude}&destination=${customer.latitude},${customer.longitude}`;
+        Linking.openURL(url);
+    }
+  };
 
-  return (
-    <View style={styles.container}>
-      <MapView
-        ref={mapRef}
-        style={styles.map}
-        provider={PROVIDER_GOOGLE}
-        initialRegion={{
-          latitude: 5.5544, // Warri Center
-          longitude: 5.7932,
-          latitudeDelta: 0.05,
-          longitudeDelta: 0.05,
-        }}
-        showsUserLocation={true}
-      >
-        {Object.values(activeRiders).map((rider) => (
-          <Marker
-            key={rider.orderId}
-            coordinate={{ latitude: rider.latitude, longitude: rider.longitude }}
-            title={rider.riderName}
-          >
-            <View style={styles.markerContainer}>
-                <View style={styles.markerCircle}>
-                    <Ionicons name="bicycle" size={14} color="white" />
-                </View>
-                <View style={styles.markerArrow} />
+  // --- RENDERERS ---
+  const renderActiveTrip = ({ item }: { item: any }) => (
+    <View style={styles.card}>
+      <View style={styles.cardHeader}>
+        <View style={styles.riderRow}>
+            <View style={styles.avatar}>
+                <Ionicons name="bicycle" size={20} color="white" />
             </View>
-          </Marker>
-        ))}
-      </MapView>
-
-      <SafeAreaView style={styles.headerContainer} pointerEvents="none">
-        <View style={styles.header}>
-            <Text style={styles.headerTitle}>Live Dispatch Map</Text>
-            <View style={styles.liveBadge}>
-                <View style={styles.liveDot} />
-                <Text style={styles.liveText}>LIVE</Text>
+            <View>
+                <Text style={styles.riderLabel}>Rider</Text>
+                <Text style={styles.riderName}>{item.riderName || "Unknown Rider"}</Text>
             </View>
         </View>
-      </SafeAreaView>
+        <View style={{flexDirection: 'row', gap: 8}}>
+            <TouchableOpacity 
+                style={[styles.actionBtn, { backgroundColor: '#EFF6FF' }]}
+                onPress={() => handleOpenRoute(item.vendor, item.customer)}
+            >
+                <Ionicons name="map" size={18} color="#2563EB" />
+            </TouchableOpacity>
+            <TouchableOpacity 
+                style={[styles.actionBtn, !item.riderPhone && { backgroundColor: '#F3F4F6' }]}
+                onPress={() => handleCall(item.riderPhone)}
+                disabled={!item.riderPhone}
+            >
+                <Ionicons name="call" size={18} color={item.riderPhone ? COLORS.success : "#9CA3AF"} />
+            </TouchableOpacity>
+        </View>
+      </View>
 
-      <View style={styles.bottomSheet}>
-        <Text style={styles.listTitle}>Active Riders ({Object.keys(activeRiders).length})</Text>
-        <FlatList
-            data={Object.values(activeRiders)}
-            keyExtractor={item => item.orderId}
-            renderItem={renderRiderCard}
-            ListEmptyComponent={<Text style={styles.emptyText}>No active riders moving yet.</Text>}
-        />
+      {/* Progress & Details (Same as before) */}
+      <View style={styles.progressContainer}>
+          <View style={styles.progressDotActive} />
+          <View style={styles.progressLine} />
+          <View style={styles.progressDot} />
+      </View>
+      <View style={styles.progressLabels}>
+          <Text style={styles.progressText}>Picked Up</Text>
+          <Text style={styles.progressText}>Delivering...</Text>
+      </View>
+
+      <View style={styles.detailsContainer}>
+          <View style={styles.locationRow}>
+              <Ionicons name="restaurant" size={14} color={COLORS.textLight} style={{marginTop:2}} />
+              <Text style={styles.locationText} numberOfLines={1}>{item.vendor.address}</Text>
+          </View>
+          <View style={styles.locationConnector} />
+          <View style={styles.locationRow}>
+              <Ionicons name="location" size={14} color={COLORS.primary} style={{marginTop:2}} />
+              <Text style={[styles.locationText, {fontWeight: '700'}]} numberOfLines={1}>{item.customer.address}</Text>
+          </View>
+      </View>
+
+      <View style={styles.footerRow}>
+          <Text style={styles.timeText}>Active for {getTimeAgo(item.postedAt)}</Text>
+          <Text style={styles.refText}>#{item.reference?.slice(0, 6).toUpperCase()}</Text>
       </View>
     </View>
+  );
+
+  // --- MAP VIEW COMPONENT ---
+  const renderMapView = () => {
+    // Default region (e.g., Lagos/Abuja fallback or calculate from trips)
+    // For MVP, if no trips, we fallback to a default location (e.g. Lagos)
+    const initialRegion = activeTrips.length > 0 && activeTrips[0].vendor.latitude ? {
+        latitude: activeTrips[0].vendor.latitude,
+        longitude: activeTrips[0].vendor.longitude,
+        latitudeDelta: 0.05,
+        longitudeDelta: 0.05,
+    } : {
+        latitude: 6.5244, // Default Lagos
+        longitude: 3.3792,
+        latitudeDelta: 0.1,
+        longitudeDelta: 0.1,
+    };
+
+    return (
+      <View style={styles.mapContainer}>
+        <MapView 
+            style={styles.map} 
+            provider={PROVIDER_DEFAULT} // Use Google on Android, Apple on iOS
+            initialRegion={initialRegion}
+            showsUserLocation={true} 
+        >
+            {activeTrips.map((trip: any) => {
+                if(!trip.vendor.latitude || !trip.customer.latitude) return null;
+                
+                return (
+                    <React.Fragment key={trip.id}>
+                        {/* 1. Vendor Marker */}
+                        <Marker 
+                            coordinate={{ latitude: trip.vendor.latitude, longitude: trip.vendor.longitude }}
+                            title={`Pick: ${trip.vendor.name}`}
+                            pinColor="orange"
+                        />
+                        
+                        {/* 2. Customer Marker */}
+                        <Marker 
+                            coordinate={{ latitude: trip.customer.latitude, longitude: trip.customer.longitude }}
+                            title={`Drop: ${trip.customer.name}`}
+                            description={`Rider: ${trip.riderName}`}
+                            pinColor={COLORS.primary}
+                        />
+
+                        {/* 3. Connecting Line (The "Route") */}
+                        <Polyline 
+                            coordinates={[
+                                { latitude: trip.vendor.latitude, longitude: trip.vendor.longitude },
+                                { latitude: trip.customer.latitude, longitude: trip.customer.longitude }
+                            ]}
+                            strokeColor={COLORS.primary}
+                            strokeWidth={3}
+                            lineDashPattern={[5,5]} // Dashed line implies "in transit"
+                        />
+                    </React.Fragment>
+                )
+            })}
+        </MapView>
+        
+        {/* Floating Legend */}
+        <View style={styles.mapLegend}>
+            <View style={styles.legendItem}>
+                <View style={[styles.dot, {backgroundColor: 'orange'}]} />
+                <Text style={styles.legendText}>Vendor</Text>
+            </View>
+            <View style={styles.legendItem}>
+                <View style={[styles.dot, {backgroundColor: COLORS.primary}]} />
+                <Text style={styles.legendText}>Customer</Text>
+            </View>
+        </View>
+      </View>
+    );
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <View>
+            <Text style={styles.title}>Live Fleet Tracking</Text>
+            <Text style={styles.subtitle}>
+                {activeTrips.length} {activeTrips.length === 1 ? 'Rider' : 'Riders'} on the move
+            </Text>
+        </View>
+        
+        {/* 🔘 TOGGLE BUTTON */}
+        <View style={styles.toggleContainer}>
+            <TouchableOpacity 
+                style={[styles.toggleBtn, viewMode === 'list' && styles.toggleBtnActive]} 
+                onPress={() => setViewMode('list')}
+            >
+                <Ionicons name="list" size={20} color={viewMode === 'list' ? COLORS.primary : COLORS.textLight} />
+            </TouchableOpacity>
+            <TouchableOpacity 
+                style={[styles.toggleBtn, viewMode === 'map' && styles.toggleBtnActive]} 
+                onPress={() => setViewMode('map')}
+            >
+                <Ionicons name="map" size={20} color={viewMode === 'map' ? COLORS.primary : COLORS.textLight} />
+            </TouchableOpacity>
+        </View>
+      </View>
+
+      {viewMode === 'list' ? (
+          <FlatList
+            data={activeTrips}
+            renderItem={renderActiveTrip}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.listContent}
+            refreshControl={
+                <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={COLORS.primary} />
+            }
+            ListEmptyComponent={
+                <View style={styles.emptyState}>
+                    <MaterialCommunityIcons name="map-marker-off" size={48} color="#D1D5DB" />
+                    <Text style={styles.emptyText}>No active trips right now.</Text>
+                    <Text style={styles.emptySub}>Riders will appear here when they pick up an order.</Text>
+                </View>
+            }
+          />
+      ) : (
+          renderMapView()
+      )}
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  map: { width: Dimensions.get('window').width, height: Dimensions.get('window').height },
+  container: { flex: 1, backgroundColor: COLORS.background },
+  header: { padding: 20, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  title: { fontSize: 24, fontWeight: '800', color: COLORS.text },
+  subtitle: { fontSize: 14, color: COLORS.textLight, marginTop: 4 },
   
-  headerContainer: { position: 'absolute', top: 0, left: 0, right: 0, paddingHorizontal: 20 },
-  header: { 
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', 
-    backgroundColor: 'rgba(255,255,255,0.95)', padding: 15, borderRadius: 15, marginTop: 10,
-    shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 10, elevation: 5
-  },
-  headerTitle: { fontSize: 18, fontWeight: '800', color: COLORS.primary },
-  liveBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FECACA', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'red', marginRight: 6 },
-  liveText: { fontSize: 10, fontWeight: '800', color: 'red' },
+  // Toggle
+  toggleContainer: { flexDirection: 'row', backgroundColor: '#E5E7EB', borderRadius: 12, padding: 4 },
+  toggleBtn: { padding: 8, borderRadius: 8 },
+  toggleBtnActive: { backgroundColor: 'white', shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 2 },
 
-  markerContainer: { alignItems: 'center' },
-  markerCircle: { width: 30, height: 30, borderRadius: 15, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'white' },
-  markerArrow: { width: 0, height: 0, borderStyle: 'solid', borderLeftWidth: 5, borderRightWidth: 5, borderBottomWidth: 8, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderBottomColor: COLORS.primary, transform: [{ rotate: '180deg' }], marginTop: -2 },
+  listContent: { padding: 20, paddingTop: 0 },
 
-  bottomSheet: {
-    position: 'absolute', bottom: 0, left: 0, right: 0,
-    backgroundColor: 'white', height: '35%',
-    borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20,
-    shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 20, elevation: 10
-  },
-  listTitle: { fontSize: 16, fontWeight: '700', marginBottom: 15, color: '#374151' },
-  emptyText: { color: '#9CA3AF', textAlign: 'center', marginTop: 20 },
-  card: { flexDirection: 'row', alignItems: 'center', padding: 12, backgroundColor: '#F9FAFB', borderRadius: 12, marginBottom: 10 },
-  iconBox: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#DBEAFE', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
-  riderName: { fontSize: 14, fontWeight: '700', color: '#1F2937' },
-  status: { fontSize: 12, color: '#6B7280' },
+  // Card Styles (Kept same as before)
+  card: { backgroundColor: COLORS.white, borderRadius: 16, padding: 16, marginBottom: 16, shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 8, elevation: 3 },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  riderRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
+  riderLabel: { fontSize: 10, color: COLORS.textLight, fontWeight: '700', textTransform: 'uppercase' },
+  riderName: { fontSize: 16, fontWeight: '700', color: COLORS.text },
+  actionBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', marginLeft: 8 },
+  progressContainer: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, paddingHorizontal: 10 },
+  progressDotActive: { width: 12, height: 12, borderRadius: 6, backgroundColor: COLORS.success },
+  progressDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: '#E5E7EB' },
+  progressLine: { flex: 1, height: 2, backgroundColor: COLORS.success, marginHorizontal: 4 },
+  progressLabels: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16, paddingHorizontal: 0 },
+  progressText: { fontSize: 10, fontWeight: '600', color: COLORS.textLight },
+  detailsContainer: { backgroundColor: '#F3F4F6', borderRadius: 12, padding: 12, marginBottom: 12 },
+  locationRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  locationText: { fontSize: 13, color: COLORS.text, flex: 1 },
+  locationConnector: { width: 2, height: 10, backgroundColor: '#D1D5DB', marginLeft: 6, marginVertical: 2 },
+  footerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  timeText: { fontSize: 12, color: COLORS.textLight, fontStyle: 'italic' },
+  refText: { fontSize: 12, fontWeight: '700', color: COLORS.textLight },
+  emptyState: { alignItems: 'center', marginTop: 60, opacity: 0.8 },
+  emptyText: { fontSize: 16, fontWeight: '700', color: COLORS.text, marginTop: 16 },
+  emptySub: { fontSize: 12, color: COLORS.textLight, marginTop: 4 },
+
+  // Map Styles
+  mapContainer: { flex: 1, overflow: 'hidden', marginHorizontal: 20, marginBottom: 20, borderRadius: 24, borderWidth: 1, borderColor: '#E5E7EB' },
+  map: { width: '100%', height: '100%' },
+  mapLegend: { position: 'absolute', top: 20, right: 20, backgroundColor: 'white', padding: 12, borderRadius: 12, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 5 },
+  legendItem: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
+  dot: { width: 10, height: 10, borderRadius: 5, marginRight: 8 },
+  legendText: { fontSize: 12, fontWeight: '600', color: COLORS.text }
 });

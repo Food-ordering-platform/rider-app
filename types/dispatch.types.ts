@@ -20,11 +20,15 @@ export interface DispatchOrder {
     name: string;
     address: string;
     phone: string;
+    latitude:number
+    longitude:number
   };
   customer: {
     name: string;
     address: string;
     phone: string;
+    deliveryLatitude:number
+    deliveryLongitude:number
   };
 }
 

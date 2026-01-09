@@ -4,11 +4,11 @@ import { Alert } from 'react-native';
 import { 
   AcceptOrderPayload, 
   AcceptOrderResponse, 
-  DispatcherDashboardData 
+  DashboardData 
 } from '../../types/dispatch.types';
 
 export const useDispatcherDashboard = () => {
-  return useQuery<DispatcherDashboardData>({
+  return useQuery<DashboardData>({
     queryKey: ['dispatcherDashboard'],
     queryFn: dispatcherService.getDashboard,
     refetchOnWindowFocus: true, 

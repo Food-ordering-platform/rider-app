@@ -6,7 +6,10 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS } from "./constants/theme";
-import { SafeAreaProvider } from "react-native-safe-area-context";
+import {
+  SafeAreaProvider,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import { AuthProvider, useAuth } from "./context/authContext";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SocketProvider } from "./context/socketContext";
@@ -46,23 +49,27 @@ function LoadingScreen() {
 
 // --- BOTTOM TABS (Unchanged) ---
 function DispatcherTabs() {
+  const insets = useSafeAreaInsets();
   return (
     <Tab.Navigator
-      screenOptions={({ route }) => ({
+      screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: COLORS.primary,
         tabBarInactiveTintColor: "#9CA3AF",
         tabBarStyle: {
           backgroundColor: "#fff",
-          height: 65,
-          paddingBottom: 10,
-          paddingTop: 10,
+          height: 60 + insets.bottom, // 👈 dynamic height
+          paddingBottom: insets.bottom + 6, // 👈 prevents overlap
+          paddingTop: 6,
           borderTopWidth: 0,
           elevation: 10,
           shadowOpacity: 0.1,
         },
-        tabBarLabelStyle: { fontSize: 12, fontWeight: "600" },
-      })}
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontWeight: "600",
+        },
+      }}
     >
       <Tab.Screen
         name="Dashboard"
