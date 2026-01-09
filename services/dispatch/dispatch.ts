@@ -2,13 +2,13 @@ import api from "../axios";
 import { 
   AcceptOrderPayload, 
   AcceptOrderResponse, 
-  DispatcherDashboardData 
+  DashboardData 
 } from "../../types/dispatch.types";
 
 export const dispatcherService = {
   // 1. Get Dashboard
   // Backend Route: /api/dispatch/dashboard
-  getDashboard: async (): Promise<DispatcherDashboardData> => {
+  getDashboard: async (): Promise<DashboardData> => {
     const response = await api.get("/dispatch/dashboard");
     return response.data.data;
   },

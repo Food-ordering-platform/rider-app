@@ -1,251 +1,282 @@
-import React from "react";
-import { 
-  View, Text, FlatList, TouchableOpacity, StyleSheet, 
-  RefreshControl, StatusBar, ActivityIndicator, Image, Dimensions
+import React, { useCallback, useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  FlatList,
+  RefreshControl,
+  StatusBar,
+  Linking,
+  Share,
+  Alert
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons, FontAwesome5 } from "@expo/vector-icons";
-import { COLORS } from "../constants/theme";
-import { useDashboardLogic } from "../hooks/useDashboardLogic"; // Import the hook
-import { DispatcherOrder } from "../types/dispatch.types";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { useAuth } from "../context/authContext";
+import { useTheme } from "../context/themeContext";
+import { useDispatcherDashboard, useAcceptOrder } from "../services/dispatch/dispatch.queries";
+import { DispatchOrder } from "../types/dispatch.types";
 
-const { width } = Dimensions.get("window");
+// Base URL for the shareable link (Update this to your actual deployed frontend URL)
+const WEB_LINK_BASE = "https://choweazy.com/ride"; 
 
 export default function DashboardScreen() {
-  // 👇 All logic is hidden inside this one line
-  const {
-    isLoading, isRefetching, isAccepting,
-    requests, activeTrips, stats, activeTab,
-    partnerName, pendingBalance,
-    refetch, setActiveTab, handleAccept, handleShare, navigateToProfile
-  } = useDashboardLogic();
+  const { colors, isDark } = useTheme();
+  const { user, logout } = useAuth();
+  
+  const { data, isLoading, refetch, isRefetching } = useDispatcherDashboard();
+  const { mutate: acceptOrder, isPending: isAccepting } = useAcceptOrder();
 
-  // --- UI Components (Pure Rendering) ---
+  const handleAccept = (orderId: string) => {
+    acceptOrder({ orderId }, {
+        onSuccess: () => {
+            refetch(); // Refresh to get the tracking ID
+            Alert.alert("Success", "Job Accepted! Now share the link with a rider.");
+        }
+    });
+  };
+
+  const handleShareLink = async (trackingId: string) => {
+    const url = `${WEB_LINK_BASE}/${trackingId}`;
+    try {
+        await Share.share({
+            message: `📦 New Delivery Job!\n\nPick up at Vendor and deliver to Customer.\n\nClick here to start: ${url}`,
+        });
+    } catch (error) {
+        Alert.alert("Error", "Could not share link");
+    }
+  };
 
   const renderHeader = () => (
-    <View style={styles.header}>
-      <View>
-        <Text style={styles.date}>{new Date().toDateString()}</Text>
-        <Text style={styles.greeting}>Hello, {partnerName.split(' ')[0]}</Text>
-      </View>
-      <TouchableOpacity style={styles.profileBtn} onPress={navigateToProfile}>
-        <Image 
-            source={{ uri: `https://ui-avatars.com/api/?name=${partnerName}&background=FF6B00&color=fff` }}
-            style={styles.avatar} 
-        />
-        <View style={styles.onlineDot} />
-      </TouchableOpacity>
+    <View style={styles.headerContainer}>
+        <View>
+            <Text style={[styles.greeting, { color: colors.textLight }]}>Hello,</Text>
+            <Text style={[styles.partnerName, { color: colors.text }]}>
+                {data?.partnerName || user?.name || "Dispatcher"}
+            </Text>
+        </View>
+        <TouchableOpacity style={styles.profileBtn} onPress={logout}>
+             <Ionicons name="log-out-outline" size={24} color={colors.primary} />
+        </TouchableOpacity>
     </View>
   );
 
   const renderStats = () => (
-    <View style={styles.statsRow}>
-      {/* 1. Pending Pay */}
-      <View style={[styles.statCard, { backgroundColor: COLORS.primary }]}>
-        <View style={styles.statIconBox}>
-            <Ionicons name="wallet" size={18} color={COLORS.primary} />
+    <View style={styles.statsContainer}>
+        {/* Wallet Card */}
+        <View style={[styles.balanceCard, { backgroundColor: colors.primary }]}>
+            <View>
+                <Text style={styles.balanceLabel}>Available Balance</Text>
+                <Text style={styles.balanceValue}>₦{(data?.availableBalance || 0).toLocaleString()}</Text>
+            </View>
+            <View style={styles.iconCircle}>
+                <Ionicons name="wallet" size={24} color={colors.primary} />
+            </View>
         </View>
-        <Text style={styles.statLabel}>Pending Pay</Text>
-        <Text style={styles.statValue}>₦{pendingBalance.toLocaleString()}</Text>
-      </View>
 
-      {/* 2. Active Riders */}
-      <View style={[styles.statCard, { backgroundColor: '#10B981' }]}>
-        <View style={styles.statIconBox}>
-            <Ionicons name="bicycle" size={18} color="#10B981" />
-        </View>
-        <Text style={styles.statLabel}>Active Riders</Text>
-        <Text style={styles.statValue}>{activeTrips.length}</Text>
-      </View>
+        {/* Row for Pending & Active */}
+        <View style={styles.statsRow}>
+            {/* Pending Balance */}
+            <View style={[styles.statBox, { backgroundColor: isDark ? '#1F2937' : '#FFF' }]}>
+                <Text style={[styles.statLabel, { color: colors.textLight }]}>Pending (On Road)</Text>
+                <Text style={[styles.statValue, { color: '#F59E0B' }]}>
+                    ₦{(data?.pendingBalance || 0).toLocaleString()}
+                </Text>
+            </View>
 
-      {/* 3. Completed */}
-      <View style={[styles.statCard, { backgroundColor: '#3B82F6' }]}>
-        <View style={styles.statIconBox}>
-            <Ionicons name="checkmark-done" size={18} color="#3B82F6" />
+            {/* Active Jobs Count */}
+            <View style={[styles.statBox, { backgroundColor: isDark ? '#1F2937' : '#FFF' }]}>
+                <Text style={[styles.statLabel, { color: colors.textLight }]}>Active Deliveries</Text>
+                <Text style={[styles.statValue, { color: colors.text }]}>{data?.stats.activeJobs || 0}</Text>
+            </View>
         </View>
-        <Text style={styles.statLabel}>Completed</Text>
-        <Text style={styles.statValue}>{stats.totalJobs}</Text>
-      </View>
     </View>
   );
 
-  const renderTabs = () => (
-    <View style={styles.tabContainer}>
-      <TouchableOpacity 
-        style={[styles.tab, activeTab === 'requests' && styles.activeTab]}
-        onPress={() => setActiveTab('requests')}
-      >
-        <Text style={[styles.tabText, activeTab === 'requests' && styles.activeTabText]}>
-          New Requests {requests.length > 0 && <View style={styles.badge} />}
-        </Text>
-      </TouchableOpacity>
-      
-      <TouchableOpacity 
-        style={[styles.tab, activeTab === 'active' && styles.activeTab]}
-        onPress={() => setActiveTab('active')}
-      >
-        <Text style={[styles.tabText, activeTab === 'active' && styles.activeTabText]}>
-          Active Fleet ({activeTrips.length})
-        </Text>
-      </TouchableOpacity>
-    </View>
-  );
-
-  const renderCard = ({ item }: { item: DispatcherOrder }) => {
-    const isRequest = !item.trackingId;
+  const renderOrderItem = ({ item }: { item: DispatchOrder }) => {
+    // Determine Card State
+    const isAssignedToMe = item.trackingId !== null;
+    const isClaimedByRider = !!item.riderName;
 
     return (
-      <View style={styles.card}>
+      <View style={[styles.card, { backgroundColor: isDark ? '#1F2937' : '#FFF' }]}>
+        
+        {/* Header: ID & Fee */}
         <View style={styles.cardHeader}>
-            <View style={styles.badgeRow}>
-                <View style={[styles.statusBadge, { backgroundColor: isRequest ? '#FFF7ED' : '#ECFDF5' }]}>
-                    <Text style={[styles.statusText, { color: isRequest ? '#C2410C' : '#047857' }]}>
-                        {isRequest ? "PENDING ACCEPTANCE" : "IN PROGRESS"}
-                    </Text>
+            <View style={styles.idRow}>
+                <View style={[styles.iconBox, { backgroundColor: '#F3E8FF' }]}>
+                    <MaterialCommunityIcons name="bike" size={20} color="#8B5CF6" />
                 </View>
-                <Text style={styles.feeText}>₦{item.deliveryFee.toLocaleString()}</Text>
+                <Text style={[styles.orderId, { color: colors.text }]}>#{item.id.slice(-6).toUpperCase()}</Text>
+            </View>
+            <View style={styles.priceTag}>
+                <Text style={styles.priceText}>₦{item.deliveryFee}</Text>
             </View>
         </View>
 
-        <View style={styles.content}>
-            <View style={styles.locationItem}>
-                <Ionicons name="storefront" size={16} color="#9CA3AF" style={{marginTop:2}} />
-                <View style={{marginLeft: 10, flex:1}}>
-                    <Text style={styles.locLabel}>Pickup From</Text>
-                    <Text style={styles.locAddress}>{item.vendor.name}</Text>
-                    <Text style={styles.locSub}>{item.vendor.address}</Text>
+        {/* Locations */}
+        <View style={styles.locationContainer}>
+            {/* Vendor */}
+            <View style={styles.locRow}>
+                <View style={[styles.dot, { backgroundColor: '#F59E0B' }]} />
+                <View style={styles.locText}>
+                    <Text style={[styles.locTitle, { color: colors.text }]}>{item.vendor.name}</Text>
+                    <Text numberOfLines={1} style={[styles.locAddress, { color: colors.textLight }]}>{item.vendor.address}</Text>
                 </View>
             </View>
+            
+            {/* Vertical Line */}
+            <View style={styles.verticalLine} />
 
-            <View style={styles.connector} />
-
-            <View style={styles.locationItem}>
-                <Ionicons name="location" size={16} color={COLORS.primary} style={{marginTop:2}} />
-                <View style={{marginLeft: 10, flex:1}}>
-                    <Text style={styles.locLabel}>Deliver To</Text>
-                    <Text style={styles.locAddress}>{item.customer.name}</Text>
-                    <Text style={styles.locSub}>{item.customer.address}</Text>
+            {/* Customer */}
+            <View style={styles.locRow}>
+                <View style={[styles.dot, { backgroundColor: colors.primary }]} />
+                <View style={styles.locText}>
+                    <Text style={[styles.locTitle, { color: colors.text }]}>{item.customer.name}</Text>
+                    <Text numberOfLines={1} style={[styles.locAddress, { color: colors.textLight }]}>{item.customer.address}</Text>
                 </View>
             </View>
         </View>
 
-        <View style={styles.footer}>
-            {isRequest ? (
+        {/* 🚀 RIDER IDENTITY SECTION (New) */}
+        {isClaimedByRider ? (
+            <View style={styles.riderInfoBox}>
+                <View style={styles.riderAvatar}>
+                    <Ionicons name="person" size={16} color="#4B5563" />
+                </View>
+                <View style={{flex: 1}}>
+                    <Text style={styles.riderLabel}>Delivery Rider</Text>
+                    <Text style={styles.riderName}>{item.riderName}</Text>
+                </View>
                 <TouchableOpacity 
-                    style={styles.btnPrimary}
-                    onPress={() => handleAccept(item.id)}
+                    style={styles.callBtn} 
+                    onPress={() => Linking.openURL(`tel:${item.riderPhone}`)}
                 >
-                    <Text style={styles.btnText}>Accept Order</Text>
-                    <Ionicons name="arrow-forward" size={18} color="white" />
+                    <Ionicons name="call" size={18} color="white" />
+                </TouchableOpacity>
+            </View>
+        ) : isAssignedToMe ? (
+            <View style={[styles.riderInfoBox, { backgroundColor: '#FEF3C7', borderColor: '#FDE68A' }]}>
+                <Ionicons name="alert-circle" size={20} color="#D97706" />
+                <Text style={[styles.riderName, { color: '#B45309', marginLeft: 8, fontSize: 13 }]}>
+                    Waiting for rider to click link...
+                </Text>
+            </View>
+        ) : null}
+
+        {/* Action Buttons */}
+        <View style={styles.actionRow}>
+            {!isAssignedToMe ? (
+                // 1. New Job -> Accept It
+                <TouchableOpacity 
+                    style={[styles.mainBtn, { backgroundColor: colors.primary }]}
+                    onPress={() => handleAccept(item.id)}
+                    disabled={isAccepting}
+                >
+                    <Text style={styles.mainBtnText}>Accept Job</Text>
                 </TouchableOpacity>
             ) : (
+                // 2. Accepted -> Share Link (Even if claimed, you might need to reshare)
                 <TouchableOpacity 
-                    style={styles.btnWhatsapp}
-                    onPress={() => handleShare(item)}
+                    style={[styles.mainBtn, { backgroundColor: '#10B981' }]}
+                    onPress={() => handleShareLink(item.trackingId!)}
                 >
-                    <FontAwesome5 name="whatsapp" size={18} color="white" />
-                    <Text style={styles.btnText}>Share Link with Rider</Text>
+                    <Ionicons name="share-social" size={18} color="white" style={{ marginRight: 8 }} />
+                    <Text style={styles.mainBtnText}>
+                        {isClaimedByRider ? "Reshare Link" : "Share with Rider"}
+                    </Text>
                 </TouchableOpacity>
             )}
         </View>
+
       </View>
     );
   };
 
-  const renderEmpty = () => (
-    <View style={styles.emptyState}>
-        <Ionicons name="cube-outline" size={60} color="#E5E7EB" />
-        <Text style={styles.emptyTitle}>
-            {activeTab === 'requests' ? "No Pending Requests" : "No Active Deliveries"}
-        </Text>
-        <Text style={styles.emptySub}>
-            {activeTab === 'requests' 
-             ? "Wait for vendors to assign orders to you." 
-             : "You have no riders on the road right now."}
-        </Text>
-    </View>
-  );
-
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F9FAFB" />
-      
-      {isAccepting && (
-        <View style={styles.loader}>
-            <ActivityIndicator size="large" color={COLORS.primary} />
-        </View>
-      )}
-
-      <FlatList
-        ListHeaderComponent={
-            <View style={{padding: 20, paddingBottom: 10}}>
-                {renderHeader()}
-                {renderStats()}
-                {renderTabs()}
-            </View>
-        }
-        data={activeTab === 'requests' ? requests : activeTrips}
-        keyExtractor={item => item.id}
-        renderItem={renderCard}
-        ListEmptyComponent={!isLoading ? renderEmpty : null}
-        ListFooterComponent={isLoading ? <ActivityIndicator style={{marginTop: 50}} color={COLORS.primary}/> : null}
-        contentContainerStyle={{ paddingBottom: 100 }}
-        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={COLORS.primary}/>}
-      />
-    </SafeAreaView>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
+      <SafeAreaView edges={['top']} style={{ flex: 1 }}>
+        <FlatList
+            ListHeaderComponent={
+                <>
+                    {renderHeader()}
+                    {renderStats()}
+                    <Text style={[styles.sectionTitle, { color: colors.text }]}>Active Orders</Text>
+                </>
+            }
+            data={data?.activeOrders || []}
+            renderItem={renderOrderItem}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.content}
+            refreshControl={
+                <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.primary} />
+            }
+            ListEmptyComponent={
+                <View style={styles.emptyContainer}>
+                    <Text style={{color: colors.textLight}}>No active jobs right now.</Text>
+                </View>
+            }
+        />
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F9FAFB' },
+  container: { flex: 1 },
+  content: { padding: 20, paddingBottom: 100 },
   
   // Header
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  date: { fontSize: 12, color: '#6B7280', fontWeight: '600', textTransform: 'uppercase' },
-  greeting: { fontSize: 24, fontWeight: '800', color: '#111827' },
-  profileBtn: { position: 'relative' },
-  avatar: { width: 48, height: 48, borderRadius: 24, borderWidth: 2, borderColor: 'white' },
-  onlineDot: { width: 12, height: 12, backgroundColor: '#10B981', borderRadius: 6, position: 'absolute', bottom: 0, right: 0, borderWidth: 2, borderColor: '#F9FAFB' },
+  headerContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
+  greeting: { fontSize: 14, fontWeight: '500' },
+  partnerName: { fontSize: 24, fontWeight: '800' },
+  profileBtn: { padding: 8, backgroundColor: '#F3F4F6', borderRadius: 12 },
 
-  // Stats Grid
-  statsRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 25 },
-  statCard: { width: (width - 50) / 3, padding: 12, borderRadius: 16, alignItems: 'flex-start', height: 100, justifyContent: 'space-between' },
-  statIconBox: { width: 28, height: 28, borderRadius: 14, backgroundColor: 'white', alignItems: 'center', justifyContent: 'center' },
-  statLabel: { color: 'rgba(255,255,255,0.9)', fontSize: 10, fontWeight: '600', marginTop: 8 },
-  statValue: { color: 'white', fontSize: 16, fontWeight: 'bold' },
+  // Stats
+  statsContainer: { marginBottom: 30 },
+  balanceCard: { borderRadius: 20, padding: 20, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, elevation: 4, shadowColor: '#7B1E3A', shadowOffset: {width:0, height:4}, shadowOpacity: 0.3, shadowRadius: 8 },
+  balanceLabel: { color: 'rgba(255,255,255,0.8)', fontSize: 14, fontWeight: '600', marginBottom: 4 },
+  balanceValue: { color: 'white', fontSize: 32, fontWeight: '800' },
+  iconCircle: { width: 48, height: 48, borderRadius: 24, backgroundColor: 'white', alignItems: 'center', justifyContent: 'center' },
+  
+  statsRow: { flexDirection: 'row', gap: 12 },
+  statBox: { flex: 1, padding: 16, borderRadius: 16, elevation: 1 },
+  statLabel: { fontSize: 12, fontWeight: '600', marginBottom: 6 },
+  statValue: { fontSize: 20, fontWeight: '800' },
 
-  // Tabs
-  tabContainer: { flexDirection: 'row', backgroundColor: '#E5E7EB', borderRadius: 12, padding: 4, marginBottom: 15 },
-  tab: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 10, flexDirection: 'row', justifyContent: 'center' },
-  activeTab: { backgroundColor: 'white', shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 },
-  tabText: { fontWeight: '600', color: '#6B7280', fontSize: 13 },
-  activeTabText: { color: '#111827', fontWeight: '700' },
-  badge: { width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.primary, marginLeft: 6 },
+  sectionTitle: { fontSize: 18, fontWeight: '700', marginBottom: 16 },
 
-  // Cards
-  card: { backgroundColor: 'white', borderRadius: 20, marginHorizontal: 20, marginBottom: 16, padding: 16, shadowColor: '#000', shadowOpacity: 0.03, shadowRadius: 10, elevation: 2 },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
-  badgeRow: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', alignItems: 'center' },
-  statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
-  statusText: { fontSize: 10, fontWeight: '800' },
-  feeText: { fontSize: 16, fontWeight: '800', color: '#111827' },
+  // Card
+  card: { borderRadius: 20, padding: 16, marginBottom: 16, elevation: 2, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10 },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  idRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  iconBox: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  orderId: { fontSize: 16, fontWeight: '800' },
+  priceTag: { backgroundColor: '#ECFDF5', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  priceText: { color: '#059669', fontWeight: '800', fontSize: 14 },
 
-  content: { marginBottom: 16 },
-  locationItem: { flexDirection: 'row', alignItems: 'flex-start' },
-  locLabel: { fontSize: 10, color: '#9CA3AF', fontWeight: '700', textTransform: 'uppercase' },
-  locAddress: { fontSize: 14, fontWeight: '700', color: '#1F2937', marginVertical: 2 },
-  locSub: { fontSize: 12, color: '#6B7280' },
-  connector: { width: 1, height: 20, backgroundColor: '#E5E7EB', marginLeft: 8, marginVertical: 4 },
+  // Locations
+  locationContainer: { marginBottom: 16 },
+  locRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  dot: { width: 10, height: 10, borderRadius: 5 },
+  locText: { flex: 1 },
+  locTitle: { fontSize: 14, fontWeight: '700' },
+  locAddress: { fontSize: 12 },
+  verticalLine: { width: 2, height: 16, backgroundColor: '#E5E7EB', marginLeft: 4, marginVertical: 2 },
 
-  // Footer Buttons
-  footer: { borderTopWidth: 1, borderTopColor: '#F3F4F6', paddingTop: 16 },
-  btnPrimary: { backgroundColor: COLORS.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 12 },
-  btnWhatsapp: { backgroundColor: '#10B981', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 12 },
-  btnText: { color: 'white', fontWeight: '700', fontSize: 14, marginHorizontal: 8 },
+  // Rider Info Box
+  riderInfoBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F3F4F6', padding: 10, borderRadius: 12, marginBottom: 16, borderWidth: 1, borderColor: '#E5E7EB' },
+  riderAvatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#E5E7EB', alignItems: 'center', justifyContent: 'center', marginRight: 10 },
+  riderLabel: { fontSize: 10, color: '#6B7280', fontWeight: '700', textTransform: 'uppercase' },
+  riderName: { fontSize: 14, color: '#1F2937', fontWeight: '700' },
+  callBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#10B981', alignItems: 'center', justifyContent: 'center' },
 
-  // Utils
-  emptyState: { alignItems: 'center', justifyContent: 'center', marginTop: 60 },
-  emptyTitle: { fontSize: 16, fontWeight: '700', color: '#374151', marginTop: 16 },
-  emptySub: { fontSize: 13, color: '#9CA3AF', textAlign: 'center', maxWidth: 250, marginTop: 4 },
-  loader: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(255,255,255,0.8)', zIndex: 50, alignItems: 'center', justifyContent: 'center' }
+  // Actions
+  actionRow: { flexDirection: 'row' },
+  mainBtn: { flex: 1, height: 48, borderRadius: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  mainBtnText: { color: 'white', fontWeight: '700', fontSize: 16 },
+
+  emptyContainer: { alignItems: 'center', padding: 40 }
 });

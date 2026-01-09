@@ -4,11 +4,16 @@ export interface DispatcherStats {
   rating: number;
 }
 
-export interface DispatcherOrder {
+export interface DispatchOrder {
   id: string;
-  status: string;
+  status: 'READY_FOR_PICKUP' | 'OUT_FOR_DELIVERY' | 'DELIVERED';
   deliveryFee: number;
   trackingId: string | null;
+  
+  // 🚀 New Identity Fields
+  riderName?: string | null;
+  riderPhone?: string | null;
+  
   vendor: {
     name: string;
     address: string;
@@ -21,14 +26,16 @@ export interface DispatcherOrder {
   };
 }
 
-export interface DispatcherDashboardData {
+export interface DashboardData {
   partnerName: string;
   availableBalance: number;
-  pendingBalance: number;
-  stats: DispatcherStats;
-  activeOrders: DispatcherOrder[]; // Renamed from 'requests' to match backend
+  pendingBalance: number; // 🚀 New Balance Field
+  stats: {
+    totalJobs: number;
+    activeJobs: number;
+  };
+  activeOrders: DispatchOrder[];
 }
-
 export interface AcceptOrderPayload {
   orderId: string;
 }

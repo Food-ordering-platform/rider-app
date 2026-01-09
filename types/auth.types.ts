@@ -80,3 +80,4 @@ export interface ResetPasswordPayload {
 export interface ResetPasswordResponse {
   message: string;
 }
+
