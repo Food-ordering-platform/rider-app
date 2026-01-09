@@ -9,6 +9,8 @@ export interface DispatchOrder {
   status: 'READY_FOR_PICKUP' | 'OUT_FOR_DELIVERY' | 'DELIVERED';
   deliveryFee: number;
   trackingId: string | null;
+  reference?:string,
+  postedAt:string
   
   // 🚀 New Identity Fields
   riderName?: string | null;
