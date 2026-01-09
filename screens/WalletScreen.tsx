@@ -1,56 +1,92 @@
-import React, { useState } from "react";
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, Modal } from "react-native";
+import React from "react";
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  FlatList, 
+  TouchableOpacity, 
+  Alert, 
+  ActivityIndicator, 
+  RefreshControl 
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { COLORS } from "../constants/theme";
-
-// MOCK TRANSACTIONS
-const TRANSACTIONS = [
-  { id: '1', type: 'CREDIT', amount: 1500, desc: 'Order #ORD-9921', date: 'Today, 2:30 PM' },
-  { id: '2', type: 'CREDIT', amount: 1200, desc: 'Order #ORD-8811', date: 'Today, 1:15 PM' },
-  { id: '3', type: 'DEBIT', amount: 45000, desc: 'Weekly Payout', date: 'Yesterday' },
-  { id: '4', type: 'CREDIT', amount: 2000, desc: 'Order #ORD-7766', date: 'Yesterday' },
-];
+import { COLORS } from "../constants/theme"; //
+import { useRiderWallet, useRequestWithdrawal } from "../services/dispatch/dispatch.queries"; // Assumes hooks are created here
 
 export default function WalletScreen() {
-  const [balance, setBalance] = useState(45200);
-  const [modalVisible, setModalVisible] = useState(false);
+  // 1. Fetch Wallet Data (Partner Balance & History)
+  const { data: wallet, isLoading, refetch } = useRiderWallet();
+  
+  // 2. Withdrawal Mutation
+  const { mutate: withdraw, isPending: isWithdrawing } = useRequestWithdrawal();
 
   const handleWithdraw = () => {
+    // Validation
+    if (!wallet || wallet.balance <= 0) {
+      return Alert.alert("Insufficient Balance", "You have no available funds to withdraw.");
+    }
+
     Alert.alert(
       "Confirm Withdrawal", 
-      `Withdraw ₦${balance.toLocaleString()} to your linked bank account?`,
+      `Withdraw ₦${wallet.balance.toLocaleString()} to your linked bank account?`,
       [
         { text: "Cancel", style: "cancel" },
         { 
           text: "Confirm", 
           onPress: () => {
-            setModalVisible(false);
-            Alert.alert("Success", "Funds will arrive in 24 hours.");
+            withdraw(wallet.balance, {
+              onSuccess: () => {
+                Alert.alert("Success", "Withdrawal request submitted successfully.");
+              },
+              onError: (err: any) => {
+                const message = err.response?.data?.message || "Failed to process withdrawal.";
+                Alert.alert("Error", message);
+              }
+            });
           }
         }
       ]
     );
   };
 
-  const renderTransaction = ({ item }: any) => (
-    <View style={styles.txnRow}>
-      <View style={[styles.iconBox, { backgroundColor: item.type === 'CREDIT' ? '#DCFCE7' : '#FEE2E2' }]}>
-        <Ionicons 
-          name={item.type === 'CREDIT' ? "arrow-down" : "arrow-up"} 
-          size={18} 
-          color={item.type === 'CREDIT' ? COLORS.success : COLORS.danger} 
-        />
+  const renderTransaction = ({ item }: { item: any }) => {
+    const isCredit = item.type === 'CREDIT';
+    
+    // Format Date: "Jan 9, 2:30 PM"
+    const dateObj = new Date(item.date);
+    const dateString = dateObj.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    const timeString = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    return (
+      <View style={styles.txnRow}>
+        <View style={[styles.iconBox, { backgroundColor: isCredit ? '#DCFCE7' : '#FEE2E2' }]}>
+          <Ionicons 
+            name={isCredit ? "arrow-down" : "arrow-up"} 
+            size={18} 
+            color={isCredit ? COLORS.success : COLORS.danger} 
+          />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.txnDesc} numberOfLines={1}>
+            {item.desc || (isCredit ? "Delivery Earnings" : "Withdrawal")}
+          </Text>
+          <Text style={styles.txnDate}>{dateString} • {timeString}</Text>
+        </View>
+        <Text style={[styles.txnAmount, { color: isCredit ? COLORS.success : COLORS.text }]}>
+          {isCredit ? '+' : '-'}₦{item.amount.toLocaleString()}
+        </Text>
       </View>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.txnDesc}>{item.desc}</Text>
-        <Text style={styles.txnDate}>{item.date}</Text>
+    );
+  };
+
+  if (isLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
       </View>
-      <Text style={[styles.txnAmount, { color: item.type === 'CREDIT' ? COLORS.success : 'black' }]}>
-        {item.type === 'CREDIT' ? '+' : '-'}₦{item.amount.toLocaleString()}
-      </Text>
-    </View>
-  );
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -62,31 +98,58 @@ export default function WalletScreen() {
       <View style={styles.card}>
         <View style={styles.cardTop}>
           <View>
-            <Text style={styles.cardLabel}>Available Balance</Text>
-            <Text style={styles.cardBalance}>₦{balance.toLocaleString()}</Text>
+            <Text style={styles.cardLabel}>Logistics Balance</Text>
+            <Text style={styles.cardBalance}>
+              ₦{wallet?.balance?.toLocaleString() || "0.00"}
+            </Text>
           </View>
           <Ionicons name="wallet" size={32} color="rgba(255,255,255,0.8)" />
         </View>
+        
         <View style={styles.cardBottom}>
           <Text style={styles.accountText}>**** **** 8922</Text>
-          <TouchableOpacity style={styles.withdrawBtn} onPress={handleWithdraw}>
-             <Text style={styles.withdrawText}>Withdraw</Text>
+          <TouchableOpacity 
+            style={[
+              styles.withdrawBtn, 
+              (isWithdrawing || (wallet?.balance || 0) <= 0) && styles.disabledBtn
+            ]} 
+            onPress={handleWithdraw}
+            disabled={isWithdrawing || (wallet?.balance || 0) <= 0}
+          >
+             {isWithdrawing ? (
+               <ActivityIndicator size="small" color={COLORS.primary} />
+             ) : (
+               <Text style={styles.withdrawText}>Withdraw</Text>
+             )}
           </TouchableOpacity>
         </View>
-        {/* Decor */}
+        
+        {/* Decorative Circles */}
         <View style={styles.circle1} />
         <View style={styles.circle2} />
       </View>
 
-      {/* HISTORY */}
+      {/* HISTORY LIST */}
       <View style={styles.historySection}>
         <Text style={styles.sectionTitle}>Recent Activity</Text>
         <FlatList
-          data={TRANSACTIONS}
-          keyExtractor={item => item.id}
+          data={wallet?.transactions || []}
+          keyExtractor={(item) => item.id}
           renderItem={renderTransaction}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 20 }}
+          refreshControl={
+            <RefreshControl 
+              refreshing={isLoading} 
+              onRefresh={refetch} 
+              tintColor={COLORS.primary} 
+            />
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>No transactions yet.</Text>
+            </View>
+          }
         />
       </View>
     </SafeAreaView>
@@ -95,11 +158,12 @@ export default function WalletScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F9FAFB', padding: 20 },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F9FAFB' },
   header: { marginBottom: 20 },
   title: { fontSize: 28, fontWeight: '800', color: '#111827' },
   
   card: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: COLORS.primary, // Using Wine Color
     height: 180,
     borderRadius: 24,
     padding: 24,
@@ -119,7 +183,17 @@ const styles = StyleSheet.create({
   
   cardBottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', zIndex: 10 },
   accountText: { color: 'rgba(255,255,255,0.6)', fontFamily: 'monospace', letterSpacing: 2 },
-  withdrawBtn: { backgroundColor: 'white', paddingVertical: 8, paddingHorizontal: 16, borderRadius: 12 },
+  
+  withdrawBtn: { 
+    backgroundColor: 'white', 
+    paddingVertical: 8, 
+    paddingHorizontal: 16, 
+    borderRadius: 12, 
+    minWidth: 100, 
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  disabledBtn: { opacity: 0.6 },
   withdrawText: { color: COLORS.primary, fontWeight: '700', fontSize: 12 },
 
   circle1: { position: 'absolute', top: -40, right: -40, width: 150, height: 150, borderRadius: 75, backgroundColor: 'rgba(255,255,255,0.1)' },
@@ -131,6 +205,9 @@ const styles = StyleSheet.create({
   txnRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'white', padding: 16, borderRadius: 16, marginBottom: 12 },
   iconBox: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   txnDesc: { fontSize: 15, fontWeight: '600', color: '#1F2937' },
-  txnDate: { fontSize: 12, color: '#9CA3AF' },
-  txnAmount: { fontSize: 15, fontWeight: '700' }
+  txnDate: { fontSize: 12, color: '#9CA3AF', marginTop: 2 },
+  txnAmount: { fontSize: 15, fontWeight: '700' },
+
+  emptyContainer: { alignItems: 'center', marginTop: 40 },
+  emptyText: { color: '#9CA3AF', fontSize: 14 }
 });

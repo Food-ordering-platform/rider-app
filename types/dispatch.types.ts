@@ -51,3 +51,22 @@ export interface AcceptOrderResponse {
   message: string;
   data: any;
 }
+
+export interface Transaction {
+  id: string;
+  type: 'CREDIT' | 'DEBIT';
+  amount: number;
+  desc: string; // Description like "Order #1234"
+  date: string; // ISO String from backend
+  status: 'PENDING' | 'SUCCESS' | 'FAILED';
+}
+
+export interface WalletData {
+  balance: number;
+  transactions: Transaction[];
+}
+
+export interface WithdrawalResponse {
+  success: true;
+  transaction: Transaction;
+}

@@ -31,3 +31,24 @@ export const useAcceptOrder = () => {
     }
   });
 };
+export const useRiderWallet = () => {
+  return useQuery({
+    queryKey: ["rider-wallet"],
+    queryFn: dispatcherService.getWallet,
+    // Refetch every minute to keep balance fresh
+    refetchInterval: 60000, 
+  });
+};
+
+// [NEW] Hook to Request Withdrawal
+export const useRequestWithdrawal = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (amount: number) => dispatcherService.requestWithdrawal(amount),
+    onSuccess: () => {
+      // Refresh wallet data immediately after successful withdrawal request
+      queryClient.invalidateQueries({ queryKey: ["rider-wallet"] });
+    },
+  });
+}
