@@ -54,16 +54,31 @@ export interface AcceptOrderResponse {
 
 export interface Transaction {
   id: string;
-  type: 'CREDIT' | 'DEBIT';
   amount: number;
-  desc: string; // Description like "Order #1234"
-  date: string; // ISO String from backend
+  type: 'CREDIT' | 'DEBIT';
+  category: string;
+  description: string; // e.g., "Withdrawal to GTBank"
+  reference?: string;
   status: 'PENDING' | 'SUCCESS' | 'FAILED';
+  createdAt: string; // ISO date string
 }
 
 export interface WalletData {
-  balance: number;
-  transactions: Transaction[];
+  availableBalance: number;
+  pendingBalance: number;
+  currency: string;
+}
+
+export interface BankDetails {
+  bankName: string;
+  accountNumber: string;
+  accountName: string;
+}
+
+export interface PayoutRequest {
+  restaurantId: string;
+  amount: number;
+  bankDetails: BankDetails;
 }
 
 export interface WithdrawalResponse {

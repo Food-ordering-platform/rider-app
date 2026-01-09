@@ -30,8 +30,7 @@ export const useAcceptOrder = () => {
       Alert.alert("Error", msg);
     }
   });
-};
-export const useRiderWallet = () => {
+};export const useRiderWallet = () => {
   return useQuery({
     queryKey: ["rider-wallet"],
     queryFn: dispatcherService.getWallet,
@@ -45,10 +44,11 @@ export const useRequestWithdrawal = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (amount: number) => dispatcherService.requestWithdrawal(amount),
+    mutationFn: (data: { amount: number; bankDetails: any }) => 
+      dispatcherService.requestWithdrawal(data),
     onSuccess: () => {
       // Refresh wallet data immediately after successful withdrawal request
       queryClient.invalidateQueries({ queryKey: ["rider-wallet"] });
     },
   });
-}
+};
