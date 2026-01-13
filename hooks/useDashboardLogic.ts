@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from "react";
-import { Alert } from "react-native";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { Alert, AppState, AppStateStatus } from "react-native";
+
 import * as Clipboard from 'expo-clipboard';
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { useSocket } from "../context/socketContext";
 import { useDispatcherDashboard, useAcceptOrder } from "../services/dispatch/dispatch.queries";
-import { DispatcherOrder } from "../types/dispatch.types";
+import { DispatchOrder } from "../types/dispatch.types";
 
 export const useDashboardLogic = () => {
   const navigation = useNavigation<any>();
@@ -16,6 +17,9 @@ export const useDashboardLogic = () => {
 
   // 2. Local State
   const [activeTab, setActiveTab] = useState<'requests' | 'active'>('requests');
+
+  // NEW: Keep track of app state to prevent double-refetches
+  const appState = useRef(AppState.currentState);
 
   // 3. Filter Logic
   // Requests: Orders with NO tracking ID (Not mine yet)
@@ -49,6 +53,28 @@ export const useDashboardLogic = () => {
     };
   }, [socket, refetch]);
 
+  // ---------------------------------------------------------
+  // ✅ NEW: LIFECYCLE LISTENER IMPLEMENTATION
+  // ---------------------------------------------------------
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      // If app was in background/inactive and is now ACTIVE
+      if (
+        appState.current.match(/inactive|background/) &&
+        nextAppState === 'active'
+      ) {
+        console.log('⚡️ App has come to the foreground! Refreshing data...');
+        refetch(); // <--- This forces the screen to update instantly
+      }
+
+      appState.current = nextAppState;
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [refetch]);
+
   // 5. Refresh on Screen Focus
   useFocusEffect(useCallback(() => { refetch(); }, []));
 
@@ -62,7 +88,7 @@ export const useDashboardLogic = () => {
     });
   };
 
-  const handleShare = async (order: DispatcherOrder) => {
+  const handleShare = async (order: DispatchOrder) => {
     if (!order.trackingId) {
       Alert.alert("Pending", "Tracking ID generating... pull to refresh.");
       return;
@@ -76,8 +102,8 @@ export const useDashboardLogic = () => {
     try {
       await Clipboard.setStringAsync(msg);
       Alert.alert("Copied!", "Order details copied to clipboard.");
-    } catch (err) {
-      Alert.alert("Error", "Could not copy to clipboard");
+    } catch (err: any) {
+      Alert.alert(err, "Error, Could not copy to clipboard");
     }
   };
 

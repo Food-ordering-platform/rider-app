@@ -10,12 +10,16 @@ import { Ionicons } from "@expo/vector-icons";
 import { COLORS } from "../constants/theme";
 import { useRiderWallet, useRequestWithdrawal } from "../services/dispatch/dispatch.queries";
 import { Transaction } from "../types/dispatch.types";
+// 1. Import the schema helper
+import { createWithdrawalSchema } from "../utils/schema";
 
 export default function WalletScreen() {
   const { data: wallet, isLoading, refetch } = useRiderWallet();
   const { mutate: withdraw, isPending: isWithdrawing } = useRequestWithdrawal();
 
   const [modalVisible, setModalVisible] = useState(false);
+  
+  // Form State
   const [amount, setAmount] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
   const [accountName, setAccountName] = useState("");
@@ -27,17 +31,38 @@ export default function WalletScreen() {
   };
 
   const handleConfirmWithdraw = () => {
-    const withdrawAmount = parseFloat(amount);
-    if (!withdrawAmount || withdrawAmount < 1000) return Alert.alert("Error", "Minimum withdrawal is ₦1,000");
-    if (withdrawAmount > (wallet?.availableBalance || 0)) return Alert.alert("Error", "Insufficient funds");
-    if (!accountNumber || !accountName || !bankName) return Alert.alert("Error", "Please fill all bank details");
+    // 2. Initialize schema with the CURRENT available balance
+    // This ensures dynamic validation (e.g., they can't withdraw more than they have right now)
+    const schema = createWithdrawalSchema(wallet?.availableBalance || 0);
 
+    // 3. Run Validation
+    const result = schema.safeParse({
+      amount: amount, // Zod will coerce this string to a number
+      bankName,
+      accountNumber,
+      accountName
+    });
+
+    // 4. Handle Errors
+    if (!result.success) {
+      // Show the first error message clearly to the user
+      Alert.alert("Validation Error", result.error.issues[0].message);
+      return;
+    }
+
+    // 5. Proceed with Validated Data
+    // result.data contains the clean, typed values
     withdraw({
-      amount: withdrawAmount,
-      bankDetails: { bankName, accountNumber, accountName }
+      amount: result.data.amount,
+      bankDetails: { 
+        bankName: result.data.bankName, 
+        accountNumber: result.data.accountNumber, 
+        accountName: result.data.accountName 
+      }
     }, {
       onSuccess: () => {
         setModalVisible(false);
+        // Clear form
         setAmount(""); setAccountNumber(""); setAccountName(""); setBankName("");
         Alert.alert("Success", "Withdrawal request submitted.");
       },
@@ -47,8 +72,6 @@ export default function WalletScreen() {
 
   const renderTransaction = ({ item }: { item: Transaction }) => {
     const isCredit = item.type === 'CREDIT';
-    
-    // Safely parse date
     const dateObj = item.createdAt ? new Date(item.createdAt) : new Date();
     const dateString = dateObj.toLocaleDateString(); 
     
@@ -82,7 +105,6 @@ export default function WalletScreen() {
           <View>
             <Text style={styles.cardLabel}>Available Balance</Text>
             <Text style={styles.cardBalance}>₦{wallet?.availableBalance?.toLocaleString() || "0.00"}</Text>
-            {/* Added Pending Balance Display */}
             <Text style={styles.pendingText}>Pending: ₦{wallet?.pendingBalance?.toLocaleString() || "0.00"}</Text>
           </View>
           <Ionicons name="wallet" size={32} color="rgba(255,255,255,0.8)" />
@@ -105,7 +127,7 @@ export default function WalletScreen() {
       <View style={styles.historySection}>
         <Text style={styles.sectionTitle}>Recent Activity</Text>
         <FlatList
-          data={wallet?.transactions || []} // ✅ Matches new Interface
+          data={wallet?.transactions || []}
           keyExtractor={(item) => item.id}
           renderItem={renderTransaction}
           refreshControl={<RefreshControl refreshing={isLoading} onRefresh={refetch} tintColor={COLORS.primary}/>}
@@ -124,20 +146,48 @@ export default function WalletScreen() {
                 <Ionicons name="close" size={24} color="#000" />
               </TouchableOpacity>
             </View>
+            
             <Text style={styles.label}>Amount (₦)</Text>
-            <TextInput style={styles.input} keyboardType="numeric" placeholder="0.00" value={amount} onChangeText={setAmount} />
+            <TextInput 
+              style={styles.input} 
+              keyboardType="numeric" 
+              placeholder="0.00" 
+              value={amount} 
+              onChangeText={setAmount} 
+            />
             
             <Text style={styles.label}>Bank Name</Text>
-            <TextInput style={styles.input} placeholder="e.g. GTBank" value={bankName} onChangeText={setBankName} />
+            <TextInput 
+              style={styles.input} 
+              placeholder="e.g. GTBank" 
+              value={bankName} 
+              onChangeText={setBankName} 
+            />
             
             <Text style={styles.label}>Account Number</Text>
-            <TextInput style={styles.input} keyboardType="numeric" placeholder="0123456789" value={accountNumber} onChangeText={setAccountNumber} maxLength={10} />
+            <TextInput 
+              style={styles.input} 
+              keyboardType="numeric" 
+              placeholder="0123456789" 
+              value={accountNumber} 
+              onChangeText={setAccountNumber} 
+              maxLength={10} 
+            />
             
             <Text style={styles.label}>Account Name</Text>
-            <TextInput style={styles.input} placeholder="Account Holder Name" value={accountName} onChangeText={setAccountName} />
+            <TextInput 
+              style={styles.input} 
+              placeholder="Account Holder Name" 
+              value={accountName} 
+              onChangeText={setAccountName} 
+            />
             
             <TouchableOpacity style={styles.confirmBtn} onPress={handleConfirmWithdraw} disabled={isWithdrawing}>
-              {isWithdrawing ? <ActivityIndicator color="white" /> : <Text style={styles.confirmBtnText}>Confirm Withdrawal</Text>}
+              {isWithdrawing ? (
+                <ActivityIndicator color="white" />
+              ) : (
+                <Text style={styles.confirmBtnText}>Confirm Withdrawal</Text>
+              )}
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>

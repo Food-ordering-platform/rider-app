@@ -1,11 +1,15 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, KeyboardAvoidingView, Platform } from "react-native";
+import { 
+  View, Text, TextInput, TouchableOpacity, StyleSheet, 
+  ActivityIndicator, Alert, KeyboardAvoidingView, Platform 
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS } from "../constants/theme";
 import { useAuth } from "../context/authContext";
+// 1. Import Schema
+import { loginSchema } from "../utils/schema";
 
-// 1. Added 'navigation' to props here
 export default function LoginScreen({ navigation } : any) {
   const { login } = useAuth();
   
@@ -13,24 +17,42 @@ export default function LoginScreen({ navigation } : any) {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
- const handleLogin = async () => {
-    if (!email || !password) return Alert.alert("Error", "Please enter email and password");
+  // 2. Error State
+  const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+
+  const handleLogin = async () => {
+    // 3. Validate Inputs
+    const result = loginSchema.safeParse({ email, password });
+
+    if (!result.success) {
+      const formattedErrors: any = {};
+      result.error.issues.forEach((err) => {
+        if (err.path[0]) formattedErrors[err.path[0]] = err.message;
+      });
+      setErrors(formattedErrors);
+      return;
+    }
+    
+    // Clear errors if valid
+    setErrors({});
     
     setLoading(true);
     try {
-      // Capture the response
-      const response = await login({ email, password });
-      // Check if OTP is required
+      // Use validated data from result.data
+      const response = await login({ 
+        email: result.data.email, 
+        password: result.data.password 
+      });
+
       if (response?.requireOtp && response?.token) {
-        setLoading(false); // Stop spinner
-        // Navigate to OTP screen with the temp token
+        setLoading(false);
         navigation.navigate("OtpVerification", { 
           token: response.token, 
-          email: email 
+          email: result.data.email 
         });
         return;
       }
-      // If no OTP needed, handles the redirect to Dashboard
+      
       navigation.navigate("Dashboard")
     } catch (error: any) {
       Alert.alert("Login Failed", error?.response?.data?.message || "Invalid credentials");
@@ -56,27 +78,45 @@ export default function LoginScreen({ navigation } : any) {
 
           {/* FORM */}
           <View style={styles.form}>
+            
+            {/* EMAIL INPUT */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Email Address</Text>
               <TextInput 
-                style={styles.input} 
+                style={[
+                  styles.input, 
+                  errors.email && styles.inputError // Red border on error
+                ]} 
                 placeholder="partner@company.com"
                 value={email}
-                onChangeText={setEmail}
+                onChangeText={(text) => {
+                  setEmail(text);
+                  if (errors.email) setErrors({ ...errors, email: undefined });
+                }}
                 autoCapitalize="none"
                 keyboardType="email-address"
               />
+              {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
             </View>
 
+            {/* PASSWORD INPUT */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Password</Text>
               <TextInput 
-                style={styles.input} 
+                style={[
+                  styles.input, 
+                  errors.password && styles.inputError 
+                ]} 
                 placeholder="••••••••"
                 value={password}
-                onChangeText={setPassword}
+                onChangeText={(text) => {
+                  setPassword(text);
+                  if (errors.password) setErrors({ ...errors, password: undefined });
+                }}
                 secureTextEntry
               />
+              {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
+              
               <TouchableOpacity style={{ alignSelf: 'flex-end', marginTop: 8 }}>
                 <Text style={styles.forgotText}>Forgot Password?</Text>
               </TouchableOpacity>
@@ -95,7 +135,7 @@ export default function LoginScreen({ navigation } : any) {
             </TouchableOpacity>
           </View>
 
-          {/* FOOTER - UPDATED SECTION */}
+          {/* FOOTER */}
           <View style={styles.footer}>
             <Text style={styles.footerText}>Don&apos;t have an account? </Text>
             <TouchableOpacity onPress={() => navigation.navigate('SignUp')}>
@@ -120,8 +160,11 @@ const styles = StyleSheet.create({
   form: { gap: 20 },
   inputGroup: { marginBottom: 5 },
   label: { fontSize: 12, fontWeight: '700', color: '#374151', marginBottom: 8, textTransform: 'uppercase' },
-  input: { height: 56, backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, paddingHorizontal: 16, fontSize: 16 },
   
+  input: { height: 56, backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, paddingHorizontal: 16, fontSize: 16 },
+  inputError: { borderColor: '#EF4444', borderWidth: 1.5, backgroundColor: '#FEF2F2' },
+  errorText: { color: '#EF4444', fontSize: 12, marginTop: 4, fontWeight: '500' },
+
   forgotText: { color: COLORS.primary, fontWeight: '600', fontSize: 13 },
   
   loginBtn: { height: 56, backgroundColor: COLORS.primary, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginTop: 10, shadowColor: COLORS.primary, shadowOpacity: 0.3, shadowOffset: { width: 0, height: 5 }, shadowRadius: 10, elevation: 5 },

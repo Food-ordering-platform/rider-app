@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "222228954916",
+    "project_id": "choweazy-e3fa8",
+    "storage_bucket": "choweazy-e3fa8.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:222228954916:android:6d5f0c94f52cbfc077fdb1",
+        "android_client_info": {
+          "package_name": "com.choweazy.riderapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBFTjPyFos_rTtSRDcOq7j7C2whcxlaiMM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:222228954916:android:5cb10bf8d5f545e277fdb1",
+        "android_client_info": {
+          "package_name": "com.choweazy.vendor"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBFTjPyFos_rTtSRDcOq7j7C2whcxlaiMM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
