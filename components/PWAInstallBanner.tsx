@@ -107,7 +107,7 @@ export const PWAInstallBanner = () => {
               <View style={styles.androidAction}>
                  <View style={styles.appIconContainer}>
                     <Image 
-                      source={require('../assets/images/icon.png')} 
+                      source={require('../assets/rider_logo.png')} 
                       style={styles.appIcon} 
                     />
                  </View>

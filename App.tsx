@@ -35,7 +35,7 @@ function LoadingScreen() {
     <View style={styles.loadingContainer}>
       {/* You can use your app logo here */}
       <Image
-        source={require("./assets/images/icon.png")} // Make sure this path exists or use a text
+        source={require("./assets/rider_logo.png")} // Make sure this path exists or use a text
         style={{
           width: 100,
           height: 100,
