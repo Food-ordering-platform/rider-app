@@ -13,6 +13,7 @@ import {
 import { AuthProvider, useAuth } from "./context/authContext";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SocketProvider } from "./context/socketContext";
+import { PWAInstallBanner } from "./components/PWAInstallBanner";
 
 // Screens
 import LoginScreen from "./screens/LoginScreen";
@@ -169,6 +170,7 @@ export default function App() {
         <AuthProvider>
           <SocketProvider>
             <NavigationContent />
+            <PWAInstallBanner />
           </SocketProvider>
         </AuthProvider>
       </SafeAreaProvider>
