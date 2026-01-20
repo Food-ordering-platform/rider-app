@@ -1,29 +1,42 @@
-import React from "react";
-import { View, ActivityIndicator, Image, StyleSheet } from "react-native"; // Added imports
-import { NavigationContainer } from "@react-navigation/native";
-import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
-import { COLORS } from "./constants/theme";
+import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { NavigationContainer } from "@react-navigation/native";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { StatusBar } from "expo-status-bar";
+import React from "react";
+import {
+  ActivityIndicator,
+  Image,
+  Platform,
+  StyleSheet,
+  View,
+} from "react-native";
 import {
   SafeAreaProvider,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
-import { AuthProvider, useAuth } from "./context/authContext";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { SocketProvider } from "./context/socketContext";
 import { PWAInstallBanner } from "./components/PWAInstallBanner";
+import { COLORS } from "./constants/theme";
+import { AuthProvider, useAuth } from "./context/authContext";
+import { SocketProvider } from "./context/socketContext";
+
+// Initialize web-specific features
+if (Platform.OS === "web") {
+  import("./web-init");
+}
 
 // Screens
-import LoginScreen from "./screens/LoginScreen";
-import DashboardScreen from "./screens/DashboardScreen";
 import ActiveTripsScreen from "./screens/ActiveTripScreen";
-import WalletScreen from "./screens/WalletScreen";
-import ProfileScreen from "./screens/ProfileScreen";
+import DashboardScreen from "./screens/DashboardScreen";
+import LoginScreen from "./screens/LoginScreen";
 import OrderDetailsScreen from "./screens/OrderDetailsScreen";
-import SignupScreen from "./screens/SignupScreen";
 import OtpVerificationScreen from "./screens/OtpVerificationScreen";
+import ProfileScreen from "./screens/ProfileScreen";
+import SignupScreen from "./screens/SignupScreen";
+import WalletScreen from "./screens/WalletScreen";
+
+console.log("🔥 App.tsx loaded");
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -130,7 +143,7 @@ function DispatcherTabs() {
 }
 
 // --- MAIN NAVIGATION ---
-function NavigationContent() {
+const NavigationContent = React.memo(function NavigationContent() {
   // 2. Destructure `isLoading` from your Auth Context
   const { isAuthenticated, isLoading } = useAuth();
 
@@ -140,7 +153,18 @@ function NavigationContent() {
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer
+      onStateChange={(state) => {
+        // Save navigation state to prevent loss on tab switch
+        if (Platform.OS === "web") {
+          try {
+            sessionStorage.setItem("NAVIGATION_STATE", JSON.stringify(state));
+          } catch (e) {
+            // Ignore errors
+          }
+        }
+      }}
+    >
       <StatusBar style="dark" />
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {isAuthenticated ? (
@@ -161,9 +185,10 @@ function NavigationContent() {
       </Stack.Navigator>
     </NavigationContainer>
   );
-}
+});
 
 export default function App() {
+  console.log("🚀 App component rendering");
   return (
     <QueryClientProvider client={queryClient}>
       <SafeAreaProvider>
