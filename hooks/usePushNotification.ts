@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
+import { Platform } from "react-native";
+import { useAuth } from "../context/authContext"; // 🟢 Ensure this path is correct
 
-// Replace with your actual VAPID public key and backend URL
-const VAPID_PUBLIC_KEY = process.env.EXPO_VAPID_PUBLIC_API_KEY
-const API_URL = process.env.EXPO_PUBLIC_API_URL
+const VAPID_PUBLIC_KEY = process.env.EXPO_VAPID_PUBLIC_API_KEY;
+const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
-// Helper to convert VAPID key
 function urlBase64ToUint8Array(base64String: string) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
@@ -15,49 +15,52 @@ function urlBase64ToUint8Array(base64String: string) {
 
 export function useWebPushNotification() {
   const [subscription, setSubscription] = useState<PushSubscription | null>(null);
-  const [permission, setPermission] = useState<NotificationPermission>(Notification.permission);
+  const { user } = useAuth(); // 🟢 Get the logged-in user
 
   useEffect(() => {
     async function registerWebPush() {
-      if (!VAPID_PUBLIC_KEY) {
-        console.warn("VAPID_PUBLIC_KEY is not configured");
+      // 1. Wait for user to be logged in
+      if (!user?.id) return; 
+
+      if (!VAPID_PUBLIC_KEY || Platform.OS !== "web" || !("serviceWorker" in navigator)) {
         return;
       }
 
-      if (!("serviceWorker" in navigator)) {
-        console.warn("Service Worker not supported in this browser");
-        return;
+      try {
+        const perm = await Notification.requestPermission();
+        if (perm !== "granted") return;
+
+        let registration = await navigator.serviceWorker.getRegistration();
+        if (!registration) {
+          registration = await navigator.serviceWorker.register("/service-worker.js");
+        }
+
+        await navigator.serviceWorker.ready;
+
+        let pushSub = await registration.pushManager.getSubscription();
+        if (!pushSub) {
+          pushSub = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+          });
+        }
+
+        // 🟢 CHANGE: Send userId manually in the body
+        await axios.post(`${API_URL}/api/notifications/subscribe`, {
+          subscription: pushSub,
+          userId: user.id 
+        });
+
+        setSubscription(pushSub);
+        console.log("✅ Web Push Registered for User:", user.id);
+
+      } catch (error) {
+        console.error("❌ Web Push Error:", error);
       }
-
-      // Request permission
-      const perm = await Notification.requestPermission();
-      setPermission(perm);
-      if (perm !== "granted") {
-        console.warn("Notification permission denied");
-        return;
-      }
-
-      // Register service worker
-      let registration = await navigator.serviceWorker.getRegistration();
-      if (!registration) {
-        registration = await navigator.serviceWorker.register("/service-worker.js");
-      }
-
-      // Subscribe to push
-      const pushSub = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
-      });
-
-      // Send subscription to backend
-      await axios.post(`${API_URL}/api/notifications/subscribe`, pushSub);
-
-      setSubscription(pushSub);
-      console.log("✅ Web Push Subscription:", pushSub);
     }
 
-    registerWebPush().catch(console.error);
-  }, []);
+    registerWebPush();
+  }, [user]); // Re-run when user logs in
 
-  return { subscription, permission };
+  return { subscription };
 }
