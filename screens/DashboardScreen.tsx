@@ -193,7 +193,7 @@ export default function DashboardScreen() {
                     <Ionicons name="person" size={16} color="#4B5563" />
                 </View>
                 <View style={{flex: 1}}>
-                    <Text style={styles.riderLabel}>Completed By</Text>
+                    <Text style={styles.riderLabel}>Accepted By</Text>
                     <Text style={styles.riderName}>{item.riderName}</Text>
                 </View>
                 {/* Only show call button if active */}

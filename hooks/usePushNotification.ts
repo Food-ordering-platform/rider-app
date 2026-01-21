@@ -1,87 +1,63 @@
-import { useState, useEffect, useRef } from "react";
-import * as Device from "expo-device";
-import * as Notifications from "expo-notifications";
-import Constants from "expo-constants";
-import { Platform, Alert } from "react-native";
+import { useState, useEffect } from "react";
+import axios from "axios";
 
-// 1. FIXED: Added missing properties
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+// Replace with your actual VAPID public key and backend URL
+const VAPID_PUBLIC_KEY = process.env.EXPO_VAPID_PUBLIC_API_KEY
+const API_URL = process.env.EXPO_PUBLIC_API_URL
 
-export const usePushNotifications = () => {
-  const [expoPushToken, setExpoPushToken] = useState<string | undefined>();
-  const [notification, setNotification] = useState<Notifications.Notification | undefined>();
- 
- 
-  const notificationListener = useRef<Notifications.Subscription>();
-const responseListener = useRef<Notifications.Subscription>();
+// Helper to convert VAPID key
+function urlBase64ToUint8Array(base64String: string) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = atob(base64);
+  return Uint8Array.from([...rawData].map((char) => char.charCodeAt(0)));
+}
 
-  async function registerForPushNotificationsAsync() {
-    let token;
+export function useWebPushNotification() {
+  const [subscription, setSubscription] = useState<PushSubscription | null>(null);
+  const [permission, setPermission] = useState<NotificationPermission>(Notification.permission);
 
-    if (Platform.OS === 'android') {
-      await Notifications.setNotificationChannelAsync('orders', {
-        name: 'New Orders',
-        importance: Notifications.AndroidImportance.MAX,
-        vibrationPattern: [0, 250, 250, 250],
-        lightColor: '#FF231F7C',
-      });
-    }
-
-    if (Device.isDevice) {
-      const { status: existingStatus } = await Notifications.getPermissionsAsync();
-      let finalStatus = existingStatus;
-      
-      if (existingStatus !== 'granted') {
-        const { status } = await Notifications.requestPermissionsAsync();
-        finalStatus = status;
-      }
-      
-      if (finalStatus !== 'granted') {
-        Alert.alert('Permission needed', 'Failed to get push token for push notification!');
+  useEffect(() => {
+    async function registerWebPush() {
+      if (!VAPID_PUBLIC_KEY) {
+        console.warn("VAPID_PUBLIC_KEY is not configured");
         return;
       }
 
-      // 3. Get the Token
-      // NOTE: Since you are using a custom dev build, explicitly passing the projectId is good practice
-      token = (await Notifications.getExpoPushTokenAsync({
-        projectId: Constants.expoConfig?.extra?.eas?.projectId,
-      })).data;
-      
-      console.log("📲 My Expo Push Token:", token);
-    } else {
-      console.log("⚠️ Must use physical device for Push Notifications");
+      if (!("serviceWorker" in navigator)) {
+        console.warn("Service Worker not supported in this browser");
+        return;
+      }
+
+      // Request permission
+      const perm = await Notification.requestPermission();
+      setPermission(perm);
+      if (perm !== "granted") {
+        console.warn("Notification permission denied");
+        return;
+      }
+
+      // Register service worker
+      let registration = await navigator.serviceWorker.getRegistration();
+      if (!registration) {
+        registration = await navigator.serviceWorker.register("/service-worker.js");
+      }
+
+      // Subscribe to push
+      const pushSub = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+      });
+
+      // Send subscription to backend
+      await axios.post(`${API_URL}/api/notifications/subscribe`, pushSub);
+
+      setSubscription(pushSub);
+      console.log("✅ Web Push Subscription:", pushSub);
     }
 
-    return token;
-  }
-
-  useEffect(() => {
-    registerForPushNotificationsAsync().then((token) => setExpoPushToken(token));
-
-    // 4. Listener: When a notification arrives while app is open
-    notificationListener.current = Notifications.addNotificationReceivedListener((notification) => {
-      setNotification(notification);
-    });
-
-    // 5. Listener: When user TAPS the notification
-    responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
-      console.log("🔔 User tapped notification:", response);
-    });
-
-    // FIXED: Use .remove() on the subscription object
-    return () => {
-      notificationListener.current?.remove();
-      responseListener.current?.remove();
-    };
+    registerWebPush().catch(console.error);
   }, []);
 
-  return { expoPushToken, notification };
-};
+  return { subscription, permission };
+}

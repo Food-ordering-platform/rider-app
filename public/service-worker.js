@@ -50,3 +50,51 @@ self.addEventListener("fetch", (event) => {
       }),
   );
 });
+
+
+/* eslint-disable no-restricted-globals */
+
+// This logic runs in the background
+self.addEventListener('push', function (event) {
+  if (event.data) {
+    const data = event.data.json();
+    
+    const options = {
+      body: data.body || 'New Notification',
+      icon: '/icons/icon-192x192.png', // Ensure these paths exist in public/
+      badge: '/icons/badge-72x72.png',
+      vibrate: [100, 50, 100],
+      data: {
+        dateOfArrival: Date.now(),
+        primaryKey: 1,
+        url: data.url || '/' // URL to open on click
+      },
+    };
+
+    event.waitUntil(
+      self.registration.showNotification(data.title || 'Rider App', options)
+    );
+  }
+});
+
+// Handle notification click
+self.addEventListener('notificationclick', function (event) {
+  event.notification.close();
+
+  let clients
+  // Open the app when clicked
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clientList) {
+      if (clientList.length > 0) {
+        let client = clientList[0];
+        for (let i = 0; i < clientList.length; i++) {
+          if (clientList[i].focused) {
+            client = clientList[i];
+          }
+        }
+        return client.focus();
+      }
+      return clients.openWindow(event.notification.data.url);
+    })
+  );
+});

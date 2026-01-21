@@ -2,11 +2,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { StatusBar } from "expo-status-bar";
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import {
   ActivityIndicator,
+  AppState,
   Image,
   Platform,
   StyleSheet,
@@ -20,12 +21,6 @@ import { PWAInstallBanner } from "./components/PWAInstallBanner";
 import { COLORS } from "./constants/theme";
 import { AuthProvider, useAuth } from "./context/authContext";
 import { SocketProvider } from "./context/socketContext";
-
-// Initialize web-specific features
-if (Platform.OS === "web") {
-  import("./web-init");
-}
-
 // Screens
 import ActiveTripsScreen from "./screens/ActiveTripScreen";
 import DashboardScreen from "./screens/DashboardScreen";
@@ -38,17 +33,20 @@ import WalletScreen from "./screens/WalletScreen";
 
 console.log("🔥 App.tsx loaded");
 
+// Initialize web-specific features
+if (Platform.OS === "web") {
+  import("./web-init");
+}
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 const queryClient = new QueryClient();
 
-// --- 1. THE NEW "SPLASH" LOADING SCREEN ---
+// --- 1. LOADING SCREEN ---
 function LoadingScreen() {
   return (
     <View style={styles.loadingContainer}>
-      {/* You can use your app logo here */}
       <Image
-        source={require("./assets/rider_logo.png")} // Make sure this path exists or use a text
+        source={require("./assets/rider_logo.png")}
         style={{
           width: 100,
           height: 100,
@@ -61,9 +59,10 @@ function LoadingScreen() {
   );
 }
 
-// --- BOTTOM TABS (Unchanged) ---
+// --- 2. BOTTOM TABS (Clean - No Badges, just PWA Fixes) ---
 function DispatcherTabs() {
   const insets = useSafeAreaInsets();
+
   return (
     <Tab.Navigator
       screenOptions={{
@@ -72,16 +71,25 @@ function DispatcherTabs() {
         tabBarInactiveTintColor: "#9CA3AF",
         tabBarStyle: {
           backgroundColor: "#fff",
-          height: 85 + insets.bottom, // 👈 dynamic height
-          paddingBottom: insets.bottom + 6, // 👈 prevents overlap
-          paddingTop: 6,
           borderTopWidth: 0,
           elevation: 10,
           shadowOpacity: 0.1,
+          
+          // PWA Layout Fix:
+          height: Platform.select({
+            web: undefined, // Let it grow naturally on web
+            default: 60 + insets.bottom, // Fixed height on native
+          }),
+          paddingBottom: Platform.select({
+            web: 20, 
+            default: insets.bottom + 6,
+          }),
+          paddingTop: 10,
         },
         tabBarLabelStyle: {
           fontSize: 12,
           fontWeight: "600",
+          marginBottom: Platform.OS === 'web' ? 5 : 0, 
         },
       }}
     >
@@ -142,12 +150,34 @@ function DispatcherTabs() {
   );
 }
 
-// --- MAIN NAVIGATION ---
+// --- 3. MAIN NAVIGATION (With Lifecycle Listener) ---
 const NavigationContent = React.memo(function NavigationContent() {
-  // 2. Destructure `isLoading` from your Auth Context
   const { isAuthenticated, isLoading } = useAuth();
+  
+  // Hooks for Lifecycle Listener
+  const queryClient = useQueryClient();
+  const appState = useRef(AppState.currentState);
 
-  // 3. SHOW LOADING SCREEN WHILE CHECKING SESSION
+  // --- LIFECYCLE LISTENER IMPLEMENTATION ---
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextAppState) => {
+      // Check if app has come from background to active (foreground)
+      if (
+        appState.current.match(/inactive|background/) &&
+        nextAppState === "active"
+      ) {
+        // console.log("⚡ App has come to the foreground! Refetching data...");
+        // This triggers a refresh of all data hooks (Dashboard, Active Trips, etc.)
+        queryClient.invalidateQueries();
+      }
+      appState.current = nextAppState;
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [queryClient]);
+
   if (isLoading) {
     return <LoadingScreen />;
   }
@@ -155,7 +185,6 @@ const NavigationContent = React.memo(function NavigationContent() {
   return (
     <NavigationContainer
       onStateChange={(state) => {
-        // Save navigation state to prevent loss on tab switch
         if (Platform.OS === "web") {
           try {
             sessionStorage.setItem("NAVIGATION_STATE", JSON.stringify(state));
