@@ -72,7 +72,7 @@ function DispatcherTabs() {
         tabBarInactiveTintColor: "#9CA3AF",
         tabBarStyle: {
           backgroundColor: "#fff",
-          height: 60 + insets.bottom, // 👈 dynamic height
+          height: 85 + insets.bottom, // 👈 dynamic height
           paddingBottom: insets.bottom + 6, // 👈 prevents overlap
           paddingTop: 6,
           borderTopWidth: 0,
