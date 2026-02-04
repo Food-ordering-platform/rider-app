@@ -4,6 +4,7 @@ import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { StatusBar } from "expo-status-bar";
+import { usePushNotification } from "./hooks/usePushNotification";
 import React, { useEffect, useRef } from "react";
 import {
   ActivityIndicator,
@@ -33,10 +34,6 @@ import WalletScreen from "./screens/EarningScreen";
 
 console.log("🔥 App.tsx loaded");
 
-// Initialize web-specific features
-if (Platform.OS === "web") {
-  import("./web-init");
-}
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 const queryClient = new QueryClient();
@@ -188,8 +185,8 @@ const NavigationContent = React.memo(function NavigationContent() {
         if (Platform.OS === "web") {
           try {
             sessionStorage.setItem("NAVIGATION_STATE", JSON.stringify(state));
-          } catch (e) {
-            // Ignore errors
+          } catch (e : any) {
+            console.error(e)
           }
         }
       }}
@@ -217,7 +214,7 @@ const NavigationContent = React.memo(function NavigationContent() {
 });
 
 export default function App() {
-  console.log("🚀 App component rendering");
+  usePushNotification()
   return (
     <QueryClientProvider client={queryClient}>
       <SafeAreaProvider>

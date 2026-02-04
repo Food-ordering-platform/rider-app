@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { riderService } from "./rider.services";
 import Toast from "react-native-toast-message";
-import { number } from "zod";
+
 
 // --- Queries ---
 export const useGetAvailableOrders = () => {
@@ -95,9 +95,6 @@ export const useConfirmDelivery = () => {
   });
 };
 
-// services/rider/rider.queries.ts
-
-// ...
 export const useGetBanks = () => {
   return useQuery({
     queryKey: ["banks"],
@@ -130,3 +127,10 @@ export const useRequestPayout = () => {
     },
   });
 }
+
+export const useGetHistory = () => {
+  return useQuery({
+    queryKey: ["rider-history"],
+    queryFn: riderService.getHistory,
+  });
+};

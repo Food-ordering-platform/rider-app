@@ -119,4 +119,9 @@ export const authService = {
       throw error;
     }
   },
+
+  updateProfile: async (data: { pushToken?: string; name?: string }) => {
+    const response = await api.patch("/auth/profile", data);
+    return response.data;
+  }
 };

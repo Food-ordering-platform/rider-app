@@ -70,4 +70,10 @@ export const riderService = {
     const response = await api.get<{ success: boolean; data: Bank[] }>("/payment/banks");
     return response.data.data;
   },
+
+  // Add this to your frontend rider.service.ts
+getHistory: async (): Promise<RiderOrder[]> => {
+  const response = await api.get<{ success: boolean; data: RiderOrder[] }>("/rider/history");
+  return response.data.data;
+},
 };

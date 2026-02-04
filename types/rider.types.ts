@@ -56,10 +56,12 @@ export interface RiderTransaction {
 
 export interface RiderEarningsResponse {
   availableBalance: number;
+  pendingBalance: number; // <--- ADD THIS
   totalEarnings: number;
   withdrawn: number;
   transactions: RiderTransaction[];
 }
+
 
 export interface PayoutRequest {
   amount: number;

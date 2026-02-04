@@ -1,66 +1,166 @@
-import { useState, useEffect } from "react";
-import axios from "axios";
-import { Platform } from "react-native";
-import { useAuth } from "../context/authContext"; // 🟢 Ensure this path is correct
+import { useEffect, useRef, useState } from 'react';
+import { Platform } from 'react-native';
+import * as Device from 'expo-device';
+import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
+import { authService } from '../services/auth/auth';
 
-const VAPID_PUBLIC_KEY = process.env.EXPO_VAPID_PUBLIC_API_KEY;
-const API_URL = process.env.EXPO_PUBLIC_API_URL;
+/*
+|--------------------------------------------------------------------------
+| Notification Behavior (App Foreground)
+|--------------------------------------------------------------------------
+*/
+Notifications.setNotificationHandler({
+  handleNotification: async (): Promise<Notifications.NotificationBehavior> => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
 
-function urlBase64ToUint8Array(base64String: string) {
-  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
-  const rawData = atob(base64);
-  return Uint8Array.from([...rawData].map((char) => char.charCodeAt(0)));
-}
+/*
+|--------------------------------------------------------------------------
+| Hook
+|--------------------------------------------------------------------------
+*/
+export const usePushNotification = () => {
+  const [expoPushToken, setExpoPushToken] = useState<string | null>(null);
+  const [notification, setNotification] =
+    useState<Notifications.Notification | null>(null);
 
-export function useWebPushNotification() {
-  const [subscription, setSubscription] = useState<PushSubscription | null>(null);
-  const { user } = useAuth(); // 🟢 Get the logged-in user
+  const notificationListener =
+    useRef<Notifications.EventSubscription | null>(null);
+
+  const responseListener =
+    useRef<Notifications.EventSubscription | null>(null);
 
   useEffect(() => {
-    async function registerWebPush() {
-      // 1. Wait for user to be logged in
-      if (!user?.id) return; 
+    registerForPushNotificationsAsync().then(async (token) => {
+      if (!token) return;
 
-      if (!VAPID_PUBLIC_KEY || Platform.OS !== "web" || !("serviceWorker" in navigator)) {
-        return;
-      }
+      setExpoPushToken(token);
 
+      // Send token to backend
       try {
-        const perm = await Notification.requestPermission();
-        if (perm !== "granted") return;
-
-        let registration = await navigator.serviceWorker.getRegistration();
-        if (!registration) {
-          registration = await navigator.serviceWorker.register("/service-worker.js");
-        }
-
-        await navigator.serviceWorker.ready;
-
-        let pushSub = await registration.pushManager.getSubscription();
-        if (!pushSub) {
-          pushSub = await registration.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
-          });
-        }
-
-        // 🟢 CHANGE: Send userId manually in the body
-        await axios.post(`${API_URL}/api/notifications/subscribe`, {
-          subscription: pushSub,
-          userId: user.id 
-        });
-
-        setSubscription(pushSub);
-        console.log("✅ Web Push Registered for User:", user.id);
-
+        await authService.updateProfile({ pushToken: token });
       } catch (error) {
-        console.error("❌ Web Push Error:", error);
+        console.error('Failed to save push token:', error);
       }
-    }
+    });
 
-    registerWebPush();
-  }, [user]); // Re-run when user logs in
+    /*
+    |--------------------------------------------------------------------------
+    | Foreground Notification Listener
+    |--------------------------------------------------------------------------
+    */
+    notificationListener.current =
+      Notifications.addNotificationReceivedListener((notification) => {
+        setNotification(notification);
+      });
 
-  return { subscription };
+    /*
+    |--------------------------------------------------------------------------
+    | Notification Tap Listener
+    |--------------------------------------------------------------------------
+    */
+    responseListener.current =
+      Notifications.addNotificationResponseReceivedListener((response) => {
+        console.log('Notification tapped:', response);
+      });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Cleanup (NEW Expo Way)
+    |--------------------------------------------------------------------------
+    */
+    return () => {
+      notificationListener.current?.remove();
+      responseListener.current?.remove();
+    };
+  }, []);
+
+  return {
+    expoPushToken,
+    notification,
+  };
+};
+
+/*
+|--------------------------------------------------------------------------
+| Register Device For Push Notifications
+|--------------------------------------------------------------------------
+*/
+async function registerForPushNotificationsAsync(): Promise<string | null> {
+  let token: string | null = null;
+
+  /*
+  |--------------------------------------------------------------------------
+  | Android Channel Setup
+  |--------------------------------------------------------------------------
+  */
+  if (Platform.OS === 'android') {
+    await Notifications.setNotificationChannelAsync('default', {
+      name: 'default',
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: '#FF231F7C',
+    });
+  }
+
+  /*
+  |--------------------------------------------------------------------------
+  | Must Be Physical Device
+  |--------------------------------------------------------------------------
+  */
+  if (!Device.isDevice) {
+    console.warn('Push notifications require a physical device');
+    return null;
+  }
+
+  /*
+  |--------------------------------------------------------------------------
+  | Permission Handling
+  |--------------------------------------------------------------------------
+  */
+  const { status: existingStatus } =
+    await Notifications.getPermissionsAsync();
+
+  let finalStatus = existingStatus;
+
+  if (existingStatus !== 'granted') {
+    const { status } =
+      await Notifications.requestPermissionsAsync();
+
+    finalStatus = status;
+  }
+
+  if (finalStatus !== 'granted') {
+    console.warn('Push notification permission denied');
+    return null;
+  }
+
+  /*
+  |--------------------------------------------------------------------------
+  | Get Expo Push Token
+  |--------------------------------------------------------------------------
+  */
+  try {
+    const projectId =
+      Constants.expoConfig?.extra?.eas?.projectId ??
+      Constants.easConfig?.projectId;
+
+    token = (
+      await Notifications.getExpoPushTokenAsync({
+        projectId,
+      })
+    ).data;
+  } catch (error) {
+    console.warn('Falling back to default token retrieval', error);
+
+    token = (await Notifications.getExpoPushTokenAsync()).data;
+  }
+
+  return token;
 }
