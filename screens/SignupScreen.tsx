@@ -70,13 +70,12 @@ export default function SignupScreen() {
       // 5. Use 'result.data' which is the sanitized, typed data
       const response = await register({
         ...result.data,
-        role: "DISPATCHER",
+        role: "RIDER",
         terms: true,
       });
 
       Alert.alert("Success", "Account created! Please Verify OTP.");
       navigation.navigate("OtpVerification", {
-        token: response.token,
         email: result.data.email,
       });
     } catch (error: any) {
@@ -118,10 +117,10 @@ export default function SignupScreen() {
           <View style={styles.form}>
             {/* COMPANY NAME */}
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Company Name</Text>
+              <Text style={styles.label}>Name</Text>
               <TextInput
                 style={[styles.input, errors.name && styles.inputError]}
-                placeholder="e.g. Sefute Logistics"
+                placeholder="John Doe"
                 value={formData.name}
                 onChangeText={(text) => handleChange("name", text)}
               />
@@ -135,7 +134,7 @@ export default function SignupScreen() {
               <Text style={styles.label}>Email Address</Text>
               <TextInput
                 style={[styles.input, errors.email && styles.inputError]}
-                placeholder="partner@company.com"
+                placeholder="johnDoe@gmail.com"
                 value={formData.email}
                 onChangeText={(text) => handleChange("email", text)}
                 keyboardType="email-address"
@@ -163,7 +162,7 @@ export default function SignupScreen() {
 
             {/* ADDRESS */}
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Office Address</Text>
+              <Text style={styles.label}>Address</Text>
               <TextInput
                 style={[styles.input, errors.address && styles.inputError]}
                 placeholder="12 Airport Road, Warri"
@@ -232,7 +231,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#374151",
     marginBottom: 8,
-    textTransform: "uppercase",
   },
 
   input: {

@@ -1,184 +1,258 @@
-import React, { useMemo } from "react";
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Linking, RefreshControl } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { useDispatcherDashboard } from "../services/dispatch/dispatch.queries";
-import { getTimeAgo } from "../hooks/useGetTime";
+import React, { useState, useEffect, useCallback } from "react";
+import { 
+  View, Text, StyleSheet, Dimensions, TouchableOpacity, Modal, TextInput, 
+  Linking, Platform, StatusBar, ActivityIndicator 
+} from "react-native";
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
+import * as Location from "expo-location";
+import { Ionicons, MaterialIcons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useFocusEffect } from "@react-navigation/native";
+import { useGetActiveOrder, useConfirmPickup, useConfirmDelivery } from "../services/rider/rider.queries";
+import { COLORS, SHADOWS } from "../constants/theme";
 
-const COLORS = { 
-  primary: "#7B1E3A", 
-  background: "#F9FAFB", 
-  success: "#10B981", 
-  text: "#1F2937",
-  textLight: "#6B7280",
-  white: "#FFFFFF",
-  warning: "#F59E0B"
-};
+const { width, height } = Dimensions.get("window");
 
-export default function ActiveTripScreen() {
-  const { data, refetch, isRefetching } = useDispatcherDashboard();
+export default function ActiveTripScreen({ navigation }: any) {
+  const insets = useSafeAreaInsets();
+  
+  // --- 1. HOOKS (Must be at the top) ---
+  
+  // Data Fetching
+  const { data: order, isLoading, refetch } = useGetActiveOrder();
 
-  // Filter: Show orders that are "OUT_FOR_DELIVERY" OR "Assigned & READY_FOR_PICKUP"
-  const activeTrips = useMemo(() => {
-    return data?.activeOrders.filter(o => {
-        const isMoving = o.status === 'OUT_FOR_DELIVERY';
-        const isAssigned = o.status === 'READY_FOR_PICKUP' && o.riderName; // Rider is going to vendor
-        return isMoving || isAssigned;
-    }) || [];
-  }, [data]);
+  // Local State
+  const [riderLocation, setRiderLocation] = useState<any>(null);
+  const [otpModalVisible, setOtpModalVisible] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
 
-  const handleCall = (phone?: string | null) => {
-    if (phone) Linking.openURL(`tel:${phone}`);
-  };
+  // Mutations
+  const { mutate: confirmPickup, isPending: loadingPickup } = useConfirmPickup();
+  const { mutate: confirmDelivery, isPending: loadingDelivery } = useConfirmDelivery();
 
-  // Keep this helper: It opens the External Google Maps App (Navigation)
-  // This is still useful for the Admin to check distances without "Tracking"
-  const handleOpenRoute = (vendor: any, customer: any) => {
-    if (vendor.latitude && vendor.longitude && customer.deliveryLatitude && customer.deliveryLongitude) {
-        const url = `http://googleusercontent.com/maps.google.com/?saddr=${vendor.latitude},${vendor.longitude}&daddr=${customer.deliveryLatitude},${customer.deliveryLongitude}`;
-        Linking.openURL(url);
+  // Refresh when tab is focused
+  useFocusEffect(
+    useCallback(() => {
+      refetch();
+    }, [refetch])
+  );
+
+  // Get Live Location (Moved to top)
+  useEffect(() => {
+    (async () => {
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') return;
+      
+      const location = await Location.getCurrentPositionAsync({});
+      setRiderLocation(location.coords);
+    })();
+  }, []);
+
+  // --- 2. EARLY RETURNS (Rendering Logic) ---
+
+  // State: Loading
+  if (isLoading) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+      </View>
+    );
+  }
+
+  // State: No Active Order
+  if (!order) {
+    return (
+      <View style={[styles.center, { padding: 40 }]}>
+        <Ionicons name="bicycle" size={100} color="#E5E7EB" style={{ marginBottom: 20 }} />
+        <Text style={styles.emptyTitle}>No Active Delivery</Text>
+        <Text style={styles.emptySub}>
+          You are currently idle. Go to the Dashboard to find available orders nearby.
+        </Text>
+        <TouchableOpacity 
+          style={styles.goHomeBtn}
+          onPress={() => navigation.navigate('Dashboard')}
+        >
+          <Text style={styles.goHomeText}>Find Orders</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  // --- 3. ACTIVE ORDER LOGIC (Only runs if order exists) ---
+
+  const isPickingUp = order.status === "RIDER_ACCEPTED";
+  
+  // Calculate coordinates safely now that we know order exists
+  const targetCoords = isPickingUp 
+    ? { lat: order.restaurant.latitude, lng: order.restaurant.longitude, title: order.restaurant.name }
+    : { lat: order.deliveryLatitude, lng: order.deliveryLongitude, title: order.customer.name };
+
+  const handleMainAction = () => {
+    if (isPickingUp) {
+      confirmPickup(order.id);
+    } else {
+      setOtpModalVisible(true);
     }
   };
 
-  const renderActiveTrip = ({ item }: { item: any }) => {
-    const isPickingUp = item.status === 'READY_FOR_PICKUP';
+  const submitDelivery = () => {
+    if (otpCode.length < 4) return;
+    confirmDelivery({ orderId: order.id, code: otpCode }, {
+      onSuccess: () => setOtpModalVisible(false) 
+    });
+  };
 
-    return (
-      <View style={styles.card}>
-        <View style={styles.cardHeader}>
-          <View style={styles.riderRow}>
-              <View style={[styles.avatar, isPickingUp && { backgroundColor: COLORS.warning }]}>
-                  <Ionicons name="bicycle" size={20} color="white" />
-              </View>
-              <View>
-                  <Text style={styles.riderLabel}>
-                    {isPickingUp ? "Going to Vendor" : "Delivering"}
-                  </Text>
-                  <Text style={styles.riderName}>{item.riderName || "Unknown Rider"}</Text>
-              </View>
-          </View>
-          <View style={{flexDirection: 'row', gap: 8}}>
-              {/* External Map Button (Optional helper) */}
-              <TouchableOpacity 
-                  style={[styles.actionBtn, { backgroundColor: '#EFF6FF' }]}
-                  onPress={() => handleOpenRoute(item.vendor, item.customer)}
-              >
-                  <Ionicons name="map" size={18} color="#2563EB" />
-              </TouchableOpacity>
-
-              {/* Call Button */}
-              <TouchableOpacity 
-                  style={[styles.actionBtn, !item.riderPhone && { backgroundColor: '#F3F4F6' }]}
-                  onPress={() => handleCall(item.riderPhone)}
-                  disabled={!item.riderPhone}
-              >
-                  <Ionicons name="call" size={18} color={item.riderPhone ? COLORS.success : "#9CA3AF"} />
-              </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Progress Bar */}
-        <View style={styles.progressContainer}>
-            <View style={[styles.progressDot, { backgroundColor: COLORS.success }]} />
-            <View style={[styles.progressLine, isPickingUp && { backgroundColor: '#E5E7EB' }]} />
-            <View style={[styles.progressDot, isPickingUp && { backgroundColor: '#E5E7EB', borderColor: '#E5E7EB' }, !isPickingUp && { backgroundColor: COLORS.success }]} />
-        </View>
-        <View style={styles.progressLabels}>
-            <Text style={styles.progressText}>Vendor</Text>
-            <Text style={styles.progressText}>Customer</Text>
-        </View>
-
-        <View style={styles.detailsContainer}>
-            <View style={styles.locationRow}>
-                <Ionicons name="restaurant" size={14} color={COLORS.textLight} style={{marginTop:2}} />
-                <Text style={styles.locationText} numberOfLines={1}>{item.vendor.address}</Text>
-            </View>
-            <View style={styles.locationConnector} />
-            <View style={styles.locationRow}>
-                <Ionicons name="location" size={14} color={COLORS.primary} style={{marginTop:2}} />
-                <Text style={[styles.locationText, {fontWeight: '700'}]} numberOfLines={1}>{item.customer.address}</Text>
-            </View>
-        </View>
-
-        <View style={styles.footerRow}>
-            <Text style={styles.timeText}>Updated {getTimeAgo(item.postedAt)}</Text>
-            <Text style={styles.refText}>#{item.reference?.slice(0, 6).toUpperCase()}</Text>
-        </View>
-      </View>
-    );
+  const openMap = () => {
+    const scheme = Platform.select({ ios: 'maps:0,0?q=', android: 'geo:0,0?q=' });
+    const url = Platform.select({
+      ios: `${scheme}${targetCoords.title}@${targetCoords.lat},${targetCoords.lng}`,
+      android: `${scheme}${targetCoords.lat},${targetCoords.lng}(${targetCoords.title})`
+    });
+    if (url) Linking.openURL(url);
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <View>
-            <Text style={styles.title}>Live Fleet Tracking</Text>
-            <Text style={styles.subtitle}>
-                {activeTrips.length} {activeTrips.length === 1 ? 'Rider' : 'Riders'} active
-            </Text>
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" />
+      <MapView
+        style={styles.map}
+        provider={PROVIDER_GOOGLE}
+        initialRegion={{
+          latitude: targetCoords.lat || 6.5244,
+          longitude: targetCoords.lng || 3.3792,
+          latitudeDelta: 0.02,
+          longitudeDelta: 0.02,
+        }}
+        showsUserLocation={true}
+      >
+        <Marker coordinate={{ latitude: targetCoords.lat, longitude: targetCoords.lng }} title={targetCoords.title} pinColor={COLORS.primary} />
+        {riderLocation && (
+          <Polyline 
+            coordinates={[
+              { latitude: riderLocation.latitude, longitude: riderLocation.longitude },
+              { latitude: targetCoords.lat, longitude: targetCoords.lng }
+            ]} 
+            strokeColor={COLORS.primary} 
+            strokeWidth={3} 
+          />
+        )}
+      </MapView>
+
+      <View style={[styles.topCard, { top: insets.top + 10 }]}>
+        <View style={styles.statusChip}>
+          <View style={[styles.dot, { backgroundColor: isPickingUp ? '#F59E0B' : '#10B981' }]} />
+          <Text style={styles.statusText}>{isPickingUp ? "Pickup in Progress" : "Delivery in Progress"}</Text>
         </View>
-        <View style={styles.liveBadge}>
-            <View style={styles.blink} />
-            <Text style={styles.liveText}>LIVE</Text>
-        </View>
+        <TouchableOpacity style={styles.navBtn} onPress={openMap}>
+          <Ionicons name="navigate" size={24} color={COLORS.primary} />
+        </TouchableOpacity>
       </View>
 
-      <FlatList
-        data={activeTrips}
-        renderItem={renderActiveTrip}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContent}
-        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={COLORS.primary} />}
-        ListEmptyComponent={
-            <View style={styles.emptyState}>
-                <MaterialCommunityIcons name="map-marker-off" size={48} color="#D1D5DB" />
-                <Text style={styles.emptyText}>No active trips right now.</Text>
-                <Text style={styles.emptySub}>Riders will appear here when they accept a job.</Text>
+      <View style={styles.bottomSheet}>
+        <View style={styles.handle} />
+        <View style={styles.row}>
+          <View style={styles.iconBox}>
+            <MaterialIcons name={isPickingUp ? "storefront" : "person"} size={24} color="white" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.label}>{isPickingUp ? "Restaurant" : "Customer"}</Text>
+            <Text style={styles.bigText}>{targetCoords.title}</Text>
+            <Text style={styles.subText} numberOfLines={1}>
+              {isPickingUp ? order.restaurant.address : order.deliveryAddress}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.orderInfo}>
+          <Text style={styles.orderId}>Order #{order.reference}</Text>
+          <Text style={styles.items}>{order.items.map((i: any) => `${i.quantity}x ${i.menuItemName}`).join(", ")}</Text>
+        </View>
+
+        <TouchableOpacity 
+          style={[styles.actionBtn, { backgroundColor: isPickingUp ? COLORS.primary : '#10B981' }]}
+          onPress={handleMainAction}
+          disabled={loadingPickup}
+        >
+          <Text style={styles.actionBtnText}>
+            {loadingPickup ? "Confirming..." : isPickingUp ? "Confirm Pickup" : "Complete Delivery"}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      <Modal visible={otpModalVisible} transparent animationType="slide">
+        <View style={styles.modalBg}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Delivery Confirmation</Text>
+            <Text style={styles.modalSub}>Enter the 4-digit code provided by the customer.</Text>
+            
+            <TextInput 
+              style={styles.otpInput}
+              placeholder="0 0 0 0"
+              keyboardType="number-pad"
+              maxLength={4}
+              value={otpCode}
+              onChangeText={setOtpCode}
+              autoFocus
+            />
+
+            <View style={styles.btnRow}>
+              <TouchableOpacity onPress={() => setOtpModalVisible(false)} style={styles.cancelBtn}>
+                <Text>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.confirmBtn, { opacity: loadingDelivery ? 0.7 : 1 }]} 
+                onPress={submitDelivery}
+                disabled={loadingDelivery}
+              >
+                <Text style={styles.confirmText}>{loadingDelivery ? "Verifying..." : "Confirm"}</Text>
+              </TouchableOpacity>
             </View>
-        }
-      />
-    </SafeAreaView>
+          </View>
+        </View>
+      </Modal>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  header: { padding: 20, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  title: { fontSize: 24, fontWeight: '800', color: COLORS.text },
-  subtitle: { fontSize: 14, color: COLORS.textLight, marginTop: 4 },
+  container: { flex: 1, backgroundColor: 'white' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'white' },
   
-  liveBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FEF2F2', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: '#FECACA' },
-  liveText: { color: '#EF4444', fontSize: 10, fontWeight: '800', marginLeft: 6 },
-  blink: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#EF4444' },
+  // Empty State
+  emptyTitle: { fontSize: 20, fontWeight: 'bold', color: '#333' },
+  emptySub: { fontSize: 14, color: '#666', textAlign: 'center', marginHorizontal: 40, marginBottom: 20 },
+  goHomeBtn: { backgroundColor: COLORS.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 24 },
+  goHomeText: { color: 'white', fontWeight: 'bold' },
 
-  listContent: { padding: 20, paddingTop: 0 },
-
-  card: { backgroundColor: COLORS.white, borderRadius: 16, padding: 16, marginBottom: 16, shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 8, elevation: 3 },
+  // Map & UI
+  map: { width: '100%', height: height * 0.65 },
+  topCard: { position: 'absolute', width: '90%', alignSelf: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+  statusChip: { backgroundColor: 'white', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 30, flexDirection: 'row', alignItems: 'center', ...SHADOWS.medium },
+  dot: { width: 8, height: 8, borderRadius: 4, marginRight: 8 },
+  statusText: { fontWeight: '700', fontSize: 12 },
+  navBtn: { backgroundColor: 'white', width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', ...SHADOWS.medium },
   
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  riderRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
-  riderLabel: { fontSize: 10, color: COLORS.textLight, fontWeight: '700', textTransform: 'uppercase' },
-  riderName: { fontSize: 16, fontWeight: '700', color: COLORS.text },
-  
-  actionBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', marginLeft: 8 },
+  bottomSheet: { position: 'absolute', bottom: 0, width: '100%', height: height * 0.4, backgroundColor: 'white', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, ...SHADOWS.medium },
+  handle: { width: 40, height: 4, backgroundColor: '#E5E7EB', alignSelf: 'center', marginBottom: 20, borderRadius: 2 },
+  row: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
+  iconBox: { width: 50, height: 50, borderRadius: 25, backgroundColor: '#1F2937', alignItems: 'center', justifyContent: 'center', marginRight: 15 },
+  label: { fontSize: 12, color: '#6B7280', textTransform: 'uppercase' },
+  bigText: { fontSize: 18, fontWeight: 'bold', color: '#111827' },
+  subText: { fontSize: 14, color: '#4B5563' },
+  orderInfo: { backgroundColor: '#F3F4F6', padding: 12, borderRadius: 12, marginBottom: 20 },
+  orderId: { fontWeight: 'bold', marginBottom: 4 },
+  items: { color: '#4B5563', fontSize: 13 },
+  actionBtn: { height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  actionBtnText: { color: 'white', fontSize: 18, fontWeight: 'bold' },
 
-  progressContainer: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, paddingHorizontal: 10 },
-  progressDot: { width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: COLORS.success, backgroundColor: 'white' },
-  progressLine: { flex: 1, height: 2, backgroundColor: COLORS.success, marginHorizontal: 4 },
-  progressLabels: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16, paddingHorizontal: 0 },
-  progressText: { fontSize: 10, fontWeight: '600', color: COLORS.textLight },
-
-  detailsContainer: { backgroundColor: '#F3F4F6', borderRadius: 12, padding: 12, marginBottom: 12 },
-  locationRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
-  locationText: { fontSize: 13, color: COLORS.text, flex: 1 },
-  locationConnector: { width: 2, height: 10, backgroundColor: '#D1D5DB', marginLeft: 6, marginVertical: 2 },
-
-  footerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  timeText: { fontSize: 12, color: COLORS.textLight, fontStyle: 'italic' },
-  refText: { fontSize: 12, fontWeight: '700', color: COLORS.textLight },
-
-  emptyState: { alignItems: 'center', marginTop: 60, opacity: 0.8 },
-  emptyText: { fontSize: 16, fontWeight: '700', color: COLORS.text, marginTop: 16 },
-  emptySub: { fontSize: 12, color: COLORS.textLight, marginTop: 4 }
+  // Modal
+  modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 },
+  modalContent: { backgroundColor: 'white', borderRadius: 20, padding: 24, alignItems: 'center' },
+  modalTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 8 },
+  modalSub: { color: '#666', textAlign: 'center', marginBottom: 24 },
+  otpInput: { fontSize: 32, letterSpacing: 8, fontWeight: 'bold', borderBottomWidth: 2, borderColor: '#ddd', width: '80%', textAlign: 'center', marginBottom: 30, paddingBottom: 10 },
+  btnRow: { flexDirection: 'row', width: '100%', gap: 12 },
+  cancelBtn: { flex: 1, padding: 16, alignItems: 'center', backgroundColor: '#F3F4F6', borderRadius: 12 },
+  confirmBtn: { flex: 1, padding: 16, alignItems: 'center', backgroundColor: COLORS.primary, borderRadius: 12 },
+  confirmText: { color: 'white', fontWeight: 'bold' }
 });

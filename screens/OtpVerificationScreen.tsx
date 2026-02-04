@@ -21,22 +21,16 @@ export default function OtpVerificationScreen({ route, navigation }: any) {
 
   const handleVerify = async () => {
     if (code.length < 6) return Alert.alert("Error", "Please enter a valid 6-digit code");
-    if (!tempToken) return Alert.alert("Error", "Session missing. Please login again.");
-
+ 
     try {
       // A. Call the API
-      const response = await verifyOtpMutation({ 
-        token: tempToken, 
-        code: code,
-        clientType: 'mobile' 
-      });
+      const response = await verifyOtpMutation({email, code})
 
-      // B. Handle Success Manually (Like Vendor App)
-      if (response.token) {
-        // Save the token
-        await SecureStore.setItemAsync('auth_token', response.token);
-        
-        // Update the Global State (Context)
+      // B. Redirect to login Manually (Like Vendor App)
+      if (response.success) {
+       navigation.navigate('Login');
+       Alert.alert("Verification Successful! You can now Login to continue")
+    // Update the Global State (Context)
         await refreshUser();
         
         // Navigation is automatic via App.tsx when 'user' becomes valid,

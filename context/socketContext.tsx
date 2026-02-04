@@ -1,56 +1,62 @@
+// food-ordering-platform/rider-app/rider-app-work-branch/context/socketContext.tsx
+
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { io, Socket } from "socket.io-client";
-import { useAuth } from "./authContext";
+import * as SecureStore from "expo-secure-store";
+import { useAuth } from "./authContext"; 
+
+// Replace with your actual backend URL
+const SOCKET_URL = process.env.EXPO_PUBLIC_API_URL || "https://food-ordering-app.up.railway.app";
 
 interface SocketContextType {
   socket: Socket | null;
+  isConnected: boolean;
 }
 
-const SocketContext = createContext<SocketContextType>({ socket: null });
+const SocketContext = createContext<SocketContextType>({ socket: null, isConnected: false });
 
 export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
   const [socket, setSocket] = useState<Socket | null>(null);
-  const { user } = useAuth();
+  const [isConnected, setIsConnected] = useState(false);
+  const { isAuthenticated, user } = useAuth(); // Ensure you check if user is logged in
 
   useEffect(() => {
-    // 1. Setup URL
-    const rawUrl = process.env.EXPO_PUBLIC_API_URL || "http://localhost:4000";
-    const socketUrl = rawUrl.replace("/api", "");
+    let socketInstance: Socket;
 
-    console.log("🔌 Connecting Socket to:", socketUrl);
+    const connectSocket = async () => {
+      if (!isAuthenticated || !user) return;
 
-    // 2. Initialize
-    const newSocket = io(socketUrl, {
-      transports: ["websocket"],
-      reconnection: true,
-    });
+      const token = await SecureStore.getItemAsync("auth_token");
+      
+      socketInstance = io(SOCKET_URL, {
+        auth: { token }, // 👈 Send token for auth
+        transports: ["websocket"],
+      });
 
-    setSocket(newSocket);
+      socketInstance.on("connect", () => {
+        console.log("✅ Socket connected:", socketInstance.id);
+        setIsConnected(true);
+      });
 
-    // 3. Join Rooms based on Role
-    if (user) {
-      // If I am a Logistics Manager (Dispatcher)
-      if (user.role === "DISPATCHER") {
-        // 1. Join Personal Room (Keep this for direct assignments later)
-        const roomName = `dispatcher_${user.id}`;
-        newSocket.emit("join_room", roomName);
+      socketInstance.on("disconnect", () => {
+        console.log("❌ Socket disconnected");
+        setIsConnected(false);
+      });
 
-        // 2. ✅ JOIN THE GLOBAL ROOM (Add this line)
-        // This allows you to hear the "new_dispatcher_request" event we just added above
-        newSocket.emit("join_room", "dispatchers");
+      setSocket(socketInstance);
+    };
 
-        console.log("📍 Dispatcher connected to Command Center");
-        newSocket.emit("join_room", `restaurant_${user.restaurant?.id}`);
-      }
-    }
+    connectSocket();
 
     return () => {
-      newSocket.disconnect();
+      if (socketInstance) {
+        socketInstance.disconnect();
+      }
     };
-  }, [user]);
+  }, [isAuthenticated]);
 
   return (
-    <SocketContext.Provider value={{ socket }}>
+    <SocketContext.Provider value={{ socket, isConnected }}>
       {children}
     </SocketContext.Provider>
   );

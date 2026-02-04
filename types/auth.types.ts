@@ -20,7 +20,7 @@ export interface LoginData {
 }
 
 export interface VerifyOtpPayload {
-  token: string;
+  email:string
   code: string;
   clientType?: "web" | "mobile"; // <--- ADDED
 }
@@ -54,9 +54,8 @@ export interface User {
 
 
 export interface VerifyOtpResponse {
+  success: boolean
   message: string;
-  user:AuthResponse['user']
-  token: string; // Final auth token
 }
 
 

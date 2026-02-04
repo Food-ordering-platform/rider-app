@@ -1,43 +1,37 @@
-// food-ordering-platform/rider-app/rider-app-work-branch/utils/storage.ts
-
 import * as SecureStore from 'expo-secure-store';
-import { Platform } from 'react-native';
 
 export const tokenStorage = {
+  /**
+   * Save data securely (e.g. Auth Token)
+   */
   async setItem(key: string, value: string) {
-    if (Platform.OS === 'web') {
-      try {
-        localStorage.setItem(key, value);
-      } catch (e) {
-        console.error('Local storage is unavailable:', e);
-      }
-    } else {
+    try {
       await SecureStore.setItemAsync(key, value);
+    } catch (error) {
+      console.error('SecureStore setItem error:', error);
     }
   },
 
+  /**
+   * Retrieve data
+   */
   async getItem(key: string) {
-    if (Platform.OS === 'web') {
-      try {
-        return localStorage.getItem(key);
-      } catch (e) {
-        console.error('Local storage is unavailable:', e);
-        return null;
-      }
-    } else {
+    try {
       return await SecureStore.getItemAsync(key);
+    } catch (error) {
+      console.error('SecureStore getItem error:', error);
+      return null;
     }
   },
 
+  /**
+   * Delete data (e.g. on Logout)
+   */
   async removeItem(key: string) {
-    if (Platform.OS === 'web') {
-      try {
-        localStorage.removeItem(key);
-      } catch (e) {
-        console.error('Local storage is unavailable:', e);
-      }
-    } else {
+    try {
       await SecureStore.deleteItemAsync(key);
+    } catch (error) {
+      console.error('SecureStore removeItem error:', error);
     }
   }
 };

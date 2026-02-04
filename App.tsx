@@ -29,7 +29,7 @@ import OrderDetailsScreen from "./screens/OrderDetailsScreen";
 import OtpVerificationScreen from "./screens/OtpVerificationScreen";
 import ProfileScreen from "./screens/ProfileScreen";
 import SignupScreen from "./screens/SignupScreen";
-import WalletScreen from "./screens/WalletScreen";
+import WalletScreen from "./screens/EarningScreen";
 
 console.log("🔥 App.tsx loaded");
 
