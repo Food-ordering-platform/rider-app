@@ -13,11 +13,13 @@ export interface RiderRestaurant {
   latitude: number;
   longitude: number;
   imageUrl?: string | null;
+  phone: string; // <--- Add this
 }
 
 export interface RiderCustomer {
   name: string;
   address: string;
+  phone?: string | null; // <--- Add this (User phone might be optional in schema)
 }
 
 export interface RiderOrderItem {
@@ -70,3 +72,4 @@ export interface Bank {
   name: string;
   code: string;
 }
+

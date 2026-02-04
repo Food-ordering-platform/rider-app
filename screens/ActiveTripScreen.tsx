@@ -1,92 +1,97 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { 
   View, Text, StyleSheet, Dimensions, TouchableOpacity, Modal, TextInput, 
-  Linking, Platform, StatusBar, ActivityIndicator 
+  Linking, Platform, StatusBar, ActivityIndicator, SafeAreaView, Image 
 } from "react-native";
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
 import * as Location from "expo-location";
-import { Ionicons, MaterialIcons } from "@expo/vector-icons";
+import { Ionicons, MaterialIcons, FontAwesome5, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import { useGetActiveOrder, useConfirmPickup, useConfirmDelivery } from "../services/rider/rider.queries";
-import { COLORS, SHADOWS } from "../constants/theme";
+import { COLORS, SHADOWS, SPACING } from "../constants/theme";
 
 const { width, height } = Dimensions.get("window");
 
 export default function ActiveTripScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
   
-  // --- 1. HOOKS (Must be at the top) ---
-  
-  // Data Fetching
+  // --- 1. HOOKS ---
   const { data: order, isLoading, refetch } = useGetActiveOrder();
-
-  // Local State
   const [riderLocation, setRiderLocation] = useState<any>(null);
   const [otpModalVisible, setOtpModalVisible] = useState(false);
   const [otpCode, setOtpCode] = useState("");
 
-  // Mutations
   const { mutate: confirmPickup, isPending: loadingPickup } = useConfirmPickup();
   const { mutate: confirmDelivery, isPending: loadingDelivery } = useConfirmDelivery();
 
-  // Refresh when tab is focused
+  // Refresh data when screen comes into focus
   useFocusEffect(
     useCallback(() => {
       refetch();
     }, [refetch])
   );
 
-  // Get Live Location (Moved to top)
+  // Live Location Tracking
   useEffect(() => {
+    let subscription: Location.LocationSubscription;
     (async () => {
       let { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') return;
       
-      const location = await Location.getCurrentPositionAsync({});
-      setRiderLocation(location.coords);
+      subscription = await Location.watchPositionAsync(
+        { accuracy: Location.Accuracy.High, timeInterval: 5000, distanceInterval: 10 },
+        (location) => setRiderLocation(location.coords)
+      );
     })();
+    return () => { if(subscription) subscription.remove(); };
   }, []);
 
-  // --- 2. EARLY RETURNS (Rendering Logic) ---
-
-  // State: Loading
+  // --- 2. LOADING STATE ---
   if (isLoading) {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color={COLORS.primary} />
+        <Text style={styles.loadingText}>Locating Active Trip...</Text>
       </View>
     );
   }
 
-  // State: No Active Order
+  // --- 3. EMPTY STATE (No Active Order) ---
   if (!order) {
     return (
-      <View style={[styles.center, { padding: 40 }]}>
-        <Ionicons name="bicycle" size={100} color="#E5E7EB" style={{ marginBottom: 20 }} />
-        <Text style={styles.emptyTitle}>No Active Delivery</Text>
+      <View style={styles.center}>
+        <View style={styles.emptyIconContainer}>
+            <MaterialIcons name="delivery-dining" size={80} color={COLORS.primary} />
+        </View>
+        <Text style={styles.emptyTitle}>You&apos;re Online & Ready</Text>
         <Text style={styles.emptySub}>
-          You are currently idle. Go to the Dashboard to find available orders nearby.
+          You currently have no active deliveries. Head to the dashboard to accept a new order.
         </Text>
         <TouchableOpacity 
           style={styles.goHomeBtn}
           onPress={() => navigation.navigate('Dashboard')}
         >
-          <Text style={styles.goHomeText}>Find Orders</Text>
+          <Text style={styles.goHomeText}>Find New Orders</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
-  // --- 3. ACTIVE ORDER LOGIC (Only runs if order exists) ---
-
+  // --- 4. ACTIVE ORDER LOGIC ---
   const isPickingUp = order.status === "RIDER_ACCEPTED";
   
-  // Calculate coordinates safely now that we know order exists
+  // Theme Colors based on Stage
+  const STAGE_COLOR = isPickingUp ? '#F59E0B' : '#10B981'; // Amber (Pickup) vs Emerald (Delivery)
+  const BTN_COLOR = isPickingUp ? COLORS.primary : '#10B981';
+
+  // Target Details
+  const target = isPickingUp ? order.restaurant : order.customer;
   const targetCoords = isPickingUp 
     ? { lat: order.restaurant.latitude, lng: order.restaurant.longitude, title: order.restaurant.name }
     : { lat: order.deliveryLatitude, lng: order.deliveryLongitude, title: order.customer.name };
 
+  // Handlers
   const handleMainAction = () => {
     if (isPickingUp) {
       confirmPickup(order.id);
@@ -111,83 +116,141 @@ export default function ActiveTripScreen({ navigation }: any) {
     if (url) Linking.openURL(url);
   };
 
+  const makeCall = (phone?: string | null) => {
+    if (!phone) return;
+    let phoneUrl = Platform.OS === 'android' ? `tel:${phone}` : `telprompt:${phone}`;
+    Linking.openURL(phoneUrl);
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
+
+      {/* --- MAP BACKGROUND --- */}
       <MapView
         style={styles.map}
         provider={PROVIDER_GOOGLE}
         initialRegion={{
           latitude: targetCoords.lat || 6.5244,
           longitude: targetCoords.lng || 3.3792,
-          latitudeDelta: 0.02,
-          longitudeDelta: 0.02,
+          latitudeDelta: 0.015,
+          longitudeDelta: 0.015,
         }}
         showsUserLocation={true}
+        showsMyLocationButton={false} // We use our own button
       >
-        <Marker coordinate={{ latitude: targetCoords.lat, longitude: targetCoords.lng }} title={targetCoords.title} pinColor={COLORS.primary} />
+        <Marker 
+            coordinate={{ latitude: targetCoords.lat, longitude: targetCoords.lng }} 
+            title={targetCoords.title} 
+        >
+            <View style={[styles.customMarker, { borderColor: STAGE_COLOR }]}>
+                <MaterialIcons name={isPickingUp ? "storefront" : "person"} size={20} color="white" />
+            </View>
+        </Marker>
+
         {riderLocation && (
           <Polyline 
             coordinates={[
               { latitude: riderLocation.latitude, longitude: riderLocation.longitude },
               { latitude: targetCoords.lat, longitude: targetCoords.lng }
             ]} 
-            strokeColor={COLORS.primary} 
-            strokeWidth={3} 
+            strokeColor={STAGE_COLOR} 
+            strokeWidth={4} 
+            lineDashPattern={[1]}
           />
         )}
       </MapView>
 
+      {/* --- FLOATING HEADER --- */}
       <View style={[styles.topCard, { top: insets.top + 10 }]}>
-        <View style={styles.statusChip}>
-          <View style={[styles.dot, { backgroundColor: isPickingUp ? '#F59E0B' : '#10B981' }]} />
-          <Text style={styles.statusText}>{isPickingUp ? "Pickup in Progress" : "Delivery in Progress"}</Text>
+        <View style={styles.statusPill}>
+          <View style={[styles.statusDot, { backgroundColor: STAGE_COLOR }]} />
+          <View>
+            <Text style={styles.statusTitle}>{isPickingUp ? "Picking Up" : "Delivering"}</Text>
+            <Text style={styles.statusSub}>Order #{order.reference}</Text>
+          </View>
         </View>
+        
         <TouchableOpacity style={styles.navBtn} onPress={openMap}>
-          <Ionicons name="navigate" size={24} color={COLORS.primary} />
+          <Ionicons name="navigate-circle" size={28} color={STAGE_COLOR} />
         </TouchableOpacity>
       </View>
 
+      {/* --- BOTTOM SHEET --- */}
       <View style={styles.bottomSheet}>
         <View style={styles.handle} />
-        <View style={styles.row}>
-          <View style={styles.iconBox}>
-            <MaterialIcons name={isPickingUp ? "storefront" : "person"} size={24} color="white" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.label}>{isPickingUp ? "Restaurant" : "Customer"}</Text>
-            <Text style={styles.bigText}>{targetCoords.title}</Text>
-            <Text style={styles.subText} numberOfLines={1}>
-              {isPickingUp ? order.restaurant.address : order.deliveryAddress}
+
+        {/* 1. Contact Info Card */}
+        <View style={styles.contactCard}>
+            <View style={[styles.iconBox, { backgroundColor: isPickingUp ? '#FFF7ED' : '#ECFDF5' }]}>
+                <MaterialIcons 
+                    name={isPickingUp ? "store" : "person"} 
+                    size={28} 
+                    color={STAGE_COLOR} 
+                />
+            </View>
+            
+            <View style={{ flex: 1, paddingHorizontal: 12 }}>
+                <Text style={styles.targetLabel}>{isPickingUp ? "Restaurant" : "Customer"}</Text>
+                <Text style={styles.targetName} numberOfLines={1}>{target.name}</Text>
+                <Text style={styles.targetAddress} numberOfLines={1}>
+                    {isPickingUp ? order.restaurant.address : order.deliveryAddress}
+                </Text>
+            </View>
+
+            <TouchableOpacity 
+                style={[styles.callBtn, { backgroundColor: STAGE_COLOR }]}
+                onPress={() => makeCall(target.phone)}
+            >
+                <Ionicons name="call" size={20} color="white" />
+            </TouchableOpacity>
+        </View>
+
+        {/* 2. Order Summary */}
+        <View style={styles.orderSummary}>
+            <Text style={styles.summaryTitle}>Order Items</Text>
+            <Text style={styles.summaryText}>
+                {order.items.map((i: any) => `${i.quantity}x ${i.menuItemName}`).join(" • ")}
             </Text>
-          </View>
         </View>
 
-        <View style={styles.orderInfo}>
-          <Text style={styles.orderId}>Order #{order.reference}</Text>
-          <Text style={styles.items}>{order.items.map((i: any) => `${i.quantity}x ${i.menuItemName}`).join(", ")}</Text>
-        </View>
-
+        {/* 3. Action Slider Button */}
         <TouchableOpacity 
-          style={[styles.actionBtn, { backgroundColor: isPickingUp ? COLORS.primary : '#10B981' }]}
+          style={[styles.actionBtn, { backgroundColor: BTN_COLOR }]}
           onPress={handleMainAction}
           disabled={loadingPickup}
         >
-          <Text style={styles.actionBtnText}>
-            {loadingPickup ? "Confirming..." : isPickingUp ? "Confirm Pickup" : "Complete Delivery"}
-          </Text>
+          {loadingPickup ? (
+              <ActivityIndicator color="white" />
+          ) : (
+            <View style={styles.actionContent}>
+                <Text style={styles.actionBtnText}>
+                    {isPickingUp ? "Confirm Pickup" : "Confirm Delivery"}
+                </Text>
+                <View style={styles.actionIconBox}>
+                    <Ionicons name="chevron-forward" size={24} color={BTN_COLOR} />
+                </View>
+            </View>
+          )}
         </TouchableOpacity>
       </View>
 
-      <Modal visible={otpModalVisible} transparent animationType="slide">
-        <View style={styles.modalBg}>
+      {/* --- OTP MODAL --- */}
+      <Modal visible={otpModalVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Delivery Confirmation</Text>
-            <Text style={styles.modalSub}>Enter the 4-digit code provided by the customer.</Text>
+            <View style={styles.modalIcon}>
+                <MaterialCommunityIcons name="shield-check" size={40} color={COLORS.primary} />
+            </View>
+            <Text style={styles.modalTitle}>Security Check</Text>
+            <Text style={styles.modalSub}>
+                Ask the customer for the 4-digit confirmation code to complete this delivery.
+            </Text>
             
             <TextInput 
               style={styles.otpInput}
-              placeholder="0 0 0 0"
+              placeholder="• • • •"
+              placeholderTextColor="#ccc"
               keyboardType="number-pad"
               maxLength={4}
               value={otpCode}
@@ -195,16 +258,20 @@ export default function ActiveTripScreen({ navigation }: any) {
               autoFocus
             />
 
-            <View style={styles.btnRow}>
-              <TouchableOpacity onPress={() => setOtpModalVisible(false)} style={styles.cancelBtn}>
-                <Text>Cancel</Text>
+            <View style={styles.modalActions}>
+              <TouchableOpacity 
+                onPress={() => setOtpModalVisible(false)} 
+                style={styles.cancelBtn}
+              >
+                <Text style={styles.cancelText}>Cancel</Text>
               </TouchableOpacity>
+              
               <TouchableOpacity 
                 style={[styles.confirmBtn, { opacity: loadingDelivery ? 0.7 : 1 }]} 
                 onPress={submitDelivery}
                 disabled={loadingDelivery}
               >
-                <Text style={styles.confirmText}>{loadingDelivery ? "Verifying..." : "Confirm"}</Text>
+                {loadingDelivery ? <ActivityIndicator color="white" /> : <Text style={styles.confirmText}>Confirm</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -215,44 +282,82 @@ export default function ActiveTripScreen({ navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: 'white' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'white' },
+  container: { flex: 1, backgroundColor: '#F9FAFB' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'white', padding: 20 },
   
-  // Empty State
-  emptyTitle: { fontSize: 20, fontWeight: 'bold', color: '#333' },
-  emptySub: { fontSize: 14, color: '#666', textAlign: 'center', marginHorizontal: 40, marginBottom: 20 },
-  goHomeBtn: { backgroundColor: COLORS.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 24 },
-  goHomeText: { color: 'white', fontWeight: 'bold' },
+  // Loading & Empty States
+  loadingText: { marginTop: 10, color: '#6B7280', fontSize: 16 },
+  emptyIconContainer: { width: 140, height: 140, backgroundColor: '#FEF2F2', borderRadius: 70, alignItems: 'center', justifyContent: 'center', marginBottom: 24 },
+  emptyTitle: { fontSize: 24, fontWeight: '800', color: '#111827', marginBottom: 8 },
+  emptySub: { fontSize: 16, color: '#6B7280', textAlign: 'center', marginBottom: 32, lineHeight: 24 },
+  goHomeBtn: { backgroundColor: COLORS.primary, paddingHorizontal: 32, paddingVertical: 16, borderRadius: 16, elevation: 4 },
+  goHomeText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
 
-  // Map & UI
-  map: { width: '100%', height: height * 0.65 },
-  topCard: { position: 'absolute', width: '90%', alignSelf: 'center', flexDirection: 'row', justifyContent: 'space-between' },
-  statusChip: { backgroundColor: 'white', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 30, flexDirection: 'row', alignItems: 'center', ...SHADOWS.medium },
-  dot: { width: 8, height: 8, borderRadius: 4, marginRight: 8 },
-  statusText: { fontWeight: '700', fontSize: 12 },
-  navBtn: { backgroundColor: 'white', width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', ...SHADOWS.medium },
-  
-  bottomSheet: { position: 'absolute', bottom: 0, width: '100%', height: height * 0.4, backgroundColor: 'white', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, ...SHADOWS.medium },
-  handle: { width: 40, height: 4, backgroundColor: '#E5E7EB', alignSelf: 'center', marginBottom: 20, borderRadius: 2 },
-  row: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
-  iconBox: { width: 50, height: 50, borderRadius: 25, backgroundColor: '#1F2937', alignItems: 'center', justifyContent: 'center', marginRight: 15 },
-  label: { fontSize: 12, color: '#6B7280', textTransform: 'uppercase' },
-  bigText: { fontSize: 18, fontWeight: 'bold', color: '#111827' },
-  subText: { fontSize: 14, color: '#4B5563' },
-  orderInfo: { backgroundColor: '#F3F4F6', padding: 12, borderRadius: 12, marginBottom: 20 },
-  orderId: { fontWeight: 'bold', marginBottom: 4 },
-  items: { color: '#4B5563', fontSize: 13 },
-  actionBtn: { height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  actionBtnText: { color: 'white', fontSize: 18, fontWeight: 'bold' },
+  // Map
+  map: { width: '100%', height: height * 0.60 }, // Map takes 60%
+  customMarker: { backgroundColor: COLORS.primary, padding: 8, borderRadius: 20, borderWidth: 3, borderColor: 'white', elevation: 5 },
+
+  // Floating Header
+  topCard: { 
+    position: 'absolute', width: '92%', alignSelf: 'center', 
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    zIndex: 10
+  },
+  statusPill: { 
+    backgroundColor: 'white', paddingHorizontal: 16, paddingVertical: 10, 
+    borderRadius: 16, flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 12,
+    ...SHADOWS.medium 
+  },
+  statusDot: { width: 10, height: 10, borderRadius: 5, marginRight: 10 },
+  statusTitle: { fontWeight: '800', fontSize: 14, color: '#111827', letterSpacing: 0.5 },
+  statusSub: { fontSize: 12, color: '#6B7280' },
+  navBtn: { 
+    backgroundColor: 'white', width: 50, height: 50, borderRadius: 25, 
+    alignItems: 'center', justifyContent: 'center', ...SHADOWS.medium 
+  },
+
+  // Bottom Sheet
+  bottomSheet: { 
+    position: 'absolute', bottom: 0, width: '100%', height: height * 0.45, 
+    backgroundColor: 'white', borderTopLeftRadius: 32, borderTopRightRadius: 32, 
+    padding: 24, ...SHADOWS.medium,
+    shadowOffset: { width: 0, height: -5 }, shadowOpacity: 0.1 
+  },
+  handle: { width: 48, height: 5, backgroundColor: '#E5E7EB', borderRadius: 10, alignSelf: 'center', marginBottom: 24 },
+
+  // Contact Card
+  contactCard: { flexDirection: 'row', alignItems: 'center', marginBottom: 24 },
+  iconBox: { width: 56, height: 56, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  targetLabel: { fontSize: 12, color: '#9CA3AF', fontWeight: '600', textTransform: 'uppercase', marginBottom: 2 },
+  targetName: { fontSize: 18, fontWeight: '800', color: '#111827', marginBottom: 2 },
+  targetAddress: { fontSize: 14, color: '#6B7280' },
+  callBtn: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', elevation: 2 },
+
+  // Summary
+  orderSummary: { backgroundColor: '#F3F4F6', padding: 16, borderRadius: 16, marginBottom: 24 },
+  summaryTitle: { fontSize: 12, fontWeight: '700', color: '#6B7280', marginBottom: 6, textTransform: 'uppercase' },
+  summaryText: { fontSize: 15, color: '#374151', fontWeight: '500', lineHeight: 22 },
+
+  // Action Button
+  actionBtn: { height: 60, borderRadius: 16, justifyContent: 'center', overflow: 'hidden', elevation: 4 },
+  actionContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 6 },
+  actionBtnText: { color: 'white', fontSize: 18, fontWeight: 'bold', marginLeft: 20 },
+  actionIconBox: { width: 48, height: 48, borderRadius: 12, backgroundColor: 'white', alignItems: 'center', justifyContent: 'center' },
 
   // Modal
-  modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 },
-  modalContent: { backgroundColor: 'white', borderRadius: 20, padding: 24, alignItems: 'center' },
-  modalTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 8 },
-  modalSub: { color: '#666', textAlign: 'center', marginBottom: 24 },
-  otpInput: { fontSize: 32, letterSpacing: 8, fontWeight: 'bold', borderBottomWidth: 2, borderColor: '#ddd', width: '80%', textAlign: 'center', marginBottom: 30, paddingBottom: 10 },
-  btnRow: { flexDirection: 'row', width: '100%', gap: 12 },
-  cancelBtn: { flex: 1, padding: 16, alignItems: 'center', backgroundColor: '#F3F4F6', borderRadius: 12 },
-  confirmBtn: { flex: 1, padding: 16, alignItems: 'center', backgroundColor: COLORS.primary, borderRadius: 12 },
-  confirmText: { color: 'white', fontWeight: 'bold' }
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 20 },
+  modalContent: { backgroundColor: 'white', borderRadius: 24, padding: 32, alignItems: 'center' },
+  modalIcon: { width: 70, height: 70, borderRadius: 35, backgroundColor: '#FEF2F2', alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
+  modalTitle: { fontSize: 22, fontWeight: '800', color: '#111827', marginBottom: 8 },
+  modalSub: { fontSize: 15, color: '#6B7280', textAlign: 'center', marginBottom: 24, lineHeight: 22 },
+  otpInput: { 
+    fontSize: 36, letterSpacing: 10, fontWeight: '800', color: '#111827',
+    borderBottomWidth: 2, borderColor: '#E5E7EB', width: '80%', textAlign: 'center', 
+    marginBottom: 32, paddingBottom: 8 
+  },
+  modalActions: { flexDirection: 'row', width: '100%', gap: 12 },
+  cancelBtn: { flex: 1, paddingVertical: 16, borderRadius: 14, backgroundColor: '#F3F4F6', alignItems: 'center' },
+  cancelText: { fontSize: 16, fontWeight: '700', color: '#4B5563' },
+  confirmBtn: { flex: 1, paddingVertical: 16, borderRadius: 14, backgroundColor: COLORS.primary, alignItems: 'center' },
+  confirmText: { fontSize: 16, fontWeight: '700', color: 'white' }
 });

@@ -19,7 +19,7 @@ export const riderService = {
   /**
    * Accepts an order, assigning it to the current rider.
    */
-  acceptOrder: async (orderId: string): Promise<RiderOrder> => {
+  acceptOrder: async (orderId: string, ): Promise<RiderOrder> => {
     const response = await api.patch<{ success: boolean; data: RiderOrder }>(`/rider/orders/${orderId}/accept`);
     return response.data.data;
   },
