@@ -49,6 +49,7 @@ export interface User {
   email: string;
   role: string;
   phone?: string;
+  isVerified: boolean
   restaurant?: Restaurant | null; 
 }
 

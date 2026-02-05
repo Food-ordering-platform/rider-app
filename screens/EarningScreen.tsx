@@ -10,7 +10,7 @@ import {
   useRequestPayout, 
   useGetBanks 
 } from "../services/rider/rider.queries";
-import { COLORS, SHADOWS, } from "../constants/theme";
+import { COLORS, SHADOWS, SPACING } from "../constants/theme";
 import { MaterialCommunityIcons, Ionicons, FontAwesome5 } from "@expo/vector-icons";
 import { format } from "date-fns";
 import { Bank } from "../types/rider.types";

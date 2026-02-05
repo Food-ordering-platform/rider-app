@@ -24,6 +24,10 @@ import { AuthProvider, useAuth } from "./context/authContext";
 import { SocketProvider } from "./context/socketContext";
 // Screens
 import ActiveTripsScreen from "./screens/ActiveTripScreen";
+import OnboardingScreen from "./screens/OnboardingScreen";
+import ForgotPasswordScreen from "./screens/ForgotPasswordScreen";
+import ResetPasswordScreen from "./screens/ResetPasswordScreen";
+import PendingVerificationScreen from "./screens/PendingVerificationScreen";
 import DashboardScreen from "./screens/DashboardScreen";
 import LoginScreen from "./screens/LoginScreen";
 import OrderDetailsScreen from "./screens/OrderDetailsScreen";
@@ -31,6 +35,7 @@ import OtpVerificationScreen from "./screens/OtpVerificationScreen";
 import ProfileScreen from "./screens/ProfileScreen";
 import SignupScreen from "./screens/SignupScreen";
 import WalletScreen from "./screens/EarningScreen";
+import { tokenStorage } from "./utils/storage";
 
 console.log("🔥 App.tsx loaded");
 
@@ -149,63 +154,46 @@ function DispatcherTabs() {
 
 // --- 3. MAIN NAVIGATION (With Lifecycle Listener) ---
 const NavigationContent = React.memo(function NavigationContent() {
-  const { isAuthenticated, isLoading } = useAuth();
-  
-  // Hooks for Lifecycle Listener
-  const queryClient = useQueryClient();
-  const appState = useRef(AppState.currentState);
+ const { isAuthenticated, isLoading, user } = useAuth(); // Get user to check verified status
+  const [hasSeenOnboarding, setHasSeenOnboarding] = React.useState<boolean | null>(null);
 
-  // --- LIFECYCLE LISTENER IMPLEMENTATION ---
-  useEffect(() => {
-    const subscription = AppState.addEventListener("change", (nextAppState) => {
-      // Check if app has come from background to active (foreground)
-      if (
-        appState.current.match(/inactive|background/) &&
-        nextAppState === "active"
-      ) {
-        // console.log("⚡ App has come to the foreground! Refetching data...");
-        // This triggers a refresh of all data hooks (Dashboard, Active Trips, etc.)
-        queryClient.invalidateQueries();
-      }
-      appState.current = nextAppState;
+  React.useEffect(() => {
+    tokenStorage.getItem('hasSeenOnboarding').then(val => {
+        setHasSeenOnboarding(!!val);
     });
+  }, []);
 
-    return () => {
-      subscription.remove();
-    };
-  }, [queryClient]);
-
-  if (isLoading) {
+  if (isLoading || hasSeenOnboarding === null) {
     return <LoadingScreen />;
-  }
+   }
 
   return (
-    <NavigationContainer
-      onStateChange={(state) => {
-        if (Platform.OS === "web") {
-          try {
-            sessionStorage.setItem("NAVIGATION_STATE", JSON.stringify(state));
-          } catch (e : any) {
-            console.error(e)
-          }
-        }
-      }}
-    >
+    <NavigationContainer>
       <StatusBar style="dark" />
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {isAuthenticated ? (
-          <>
-            <Stack.Screen name="Main" component={DispatcherTabs} />
-            <Stack.Screen name="OrderDetails" component={OrderDetailsScreen} />
-          </>
+          // AUTHENTICATED FLOW
+          user?.isVerified ? (
+             // VERIFIED -> DASHBOARD
+             <>
+               <Stack.Screen name="Main" component={DispatcherTabs} />
+               <Stack.Screen name="OrderDetails" component={OrderDetailsScreen} />
+             </>
+          ) : (
+             // UNVERIFIED -> PENDING SCREEN
+             <Stack.Screen name="PendingVerification" component={PendingVerificationScreen} />
+          )
         ) : (
+          // UNAUTHENTICATED FLOW
           <>
+            {!hasSeenOnboarding && (
+               <Stack.Screen name="Onboarding" component={OnboardingScreen} />
+            )}
             <Stack.Screen name="Login" component={LoginScreen} />
             <Stack.Screen name="SignUp" component={SignupScreen} />
-            <Stack.Screen
-              name="OtpVerification"
-              component={OtpVerificationScreen}
-            />
+            <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+            <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
+            <Stack.Screen name="OtpVerification" component={OtpVerificationScreen} />
           </>
         )}
       </Stack.Navigator>
