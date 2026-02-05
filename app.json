@@ -16,10 +16,14 @@
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE"
-       
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "config": {
+        "googleMaps": {
+          "apiKeys": "AIzaSyBWtXEl3nt3CNLis9jwjkLiV9jR0RmaE1A"
+        }
+      }
     },
     "web": {
       "output": "single",
@@ -54,6 +58,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "c7d6ee35-0584-4167-b5b5-31d79323b8fb"
+      }
     }
   }
 }

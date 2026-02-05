@@ -224,7 +224,7 @@ export default function ActiveTripScreen({ navigation }: any) {
         <View style={styles.orderSummary}>
             <Text style={styles.summaryTitle}>Order Items</Text>
             <Text style={styles.summaryText}>
-                {order.items.map((i: any) => `${i.quantity}x ${i.menuItemName}`).join(" • ")}
+                {order.items?.map((i: any) => `${i.quantity}x ${i.menuItemName}`).join(" • ")}
             </Text>
         </View>
 
