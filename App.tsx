@@ -1,43 +1,35 @@
+import React, { useEffect, useState } from "react";
+import { ActivityIndicator, Image, Platform, StyleSheet, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { StatusBar } from "expo-status-bar";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
-import { StatusBar } from "expo-status-bar";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
+
+// Hooks & Context
 import { usePushNotification } from "./hooks/usePushNotification";
-import React, { useEffect, useRef } from "react";
-import {
-  ActivityIndicator,
-  AppState,
-  Image,
-  Platform,
-  StyleSheet,
-  View,
-} from "react-native";
-import {
-  SafeAreaProvider,
-  useSafeAreaInsets,
-} from "react-native-safe-area-context";
-import { PWAInstallBanner } from "./components/PWAInstallBanner";
-import { COLORS } from "./constants/theme";
 import { AuthProvider, useAuth } from "./context/authContext";
 import { SocketProvider } from "./context/socketContext";
+import { tokenStorage } from "./utils/storage";
+import { COLORS } from "./constants/theme";
+import { PWAInstallBanner } from "./components/PWAInstallBanner";
+
 // Screens
-import ActiveTripsScreen from "./screens/ActiveTripScreen";
 import OnboardingScreen from "./screens/OnboardingScreen";
+import LoginScreen from "./screens/LoginScreen";
+import SignupScreen from "./screens/SignupScreen";
 import ForgotPasswordScreen from "./screens/ForgotPasswordScreen";
 import ResetPasswordScreen from "./screens/ResetPasswordScreen";
-import PendingVerificationScreen from "./screens/PendingVerificationScreen";
-import DashboardScreen from "./screens/DashboardScreen";
-import LoginScreen from "./screens/LoginScreen";
-import OrderDetailsScreen from "./screens/OrderDetailsScreen";
 import OtpVerificationScreen from "./screens/OtpVerificationScreen";
-import ProfileScreen from "./screens/ProfileScreen";
-import SignupScreen from "./screens/SignupScreen";
-import WalletScreen from "./screens/EarningScreen";
-import { tokenStorage } from "./utils/storage";
+import PendingVerificationScreen from "./screens/PendingVerificationScreen";
 
-console.log("🔥 App.tsx loaded");
+import DashboardScreen from "./screens/DashboardScreen";
+import ActiveTripsScreen from "./screens/ActiveTripScreen";
+import WalletScreen from "./screens/EarningScreen";
+import ProfileScreen from "./screens/ProfileScreen";
+import OrderDetailsScreen from "./screens/OrderDetailsScreen";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -49,19 +41,14 @@ function LoadingScreen() {
     <View style={styles.loadingContainer}>
       <Image
         source={require("./assets/rider_logo.png")}
-        style={{
-          width: 100,
-          height: 100,
-          marginBottom: 20,
-          resizeMode: "contain",
-        }}
+        style={styles.loadingLogo}
       />
       <ActivityIndicator size="large" color={COLORS.primary} />
     </View>
   );
 }
 
-// --- 2. BOTTOM TABS (Clean - No Badges, just PWA Fixes) ---
+// --- 2. BOTTOM TABS ---
 function DispatcherTabs() {
   const insets = useSafeAreaInsets();
 
@@ -76,22 +63,16 @@ function DispatcherTabs() {
           borderTopWidth: 0,
           elevation: 10,
           shadowOpacity: 0.1,
-          
-          // PWA Layout Fix:
-          height: Platform.select({
-            web: undefined, // Let it grow naturally on web
-            default: 60 + insets.bottom, // Fixed height on native
-          }),
-          paddingBottom: Platform.select({
-            web: 20, 
-            default: insets.bottom + 6,
-          }),
+          // 🔴 FIX: Removed fixed 'height' which caused twitching when padding was added
+          // height: Platform.select({ ios: 80, android: 70, default: 60 }), 
+          minHeight: Platform.select({ ios: 85, android: 70, default: 60 }), // Allow growth
+          paddingBottom: insets.bottom + 10,
           paddingTop: 10,
         },
         tabBarLabelStyle: {
           fontSize: 12,
           fontWeight: "600",
-          marginBottom: Platform.OS === 'web' ? 5 : 0, 
+          marginBottom: Platform.OS === 'android' ? 10 : 0, // Add spacing for Android
         },
       }}
     >
@@ -100,11 +81,7 @@ function DispatcherTabs() {
         component={DashboardScreen}
         options={{
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? "grid" : "grid-outline"}
-              size={24}
-              color={color}
-            />
+            <Ionicons name={focused ? "grid" : "grid-outline"} size={24} color={color} />
           ),
         }}
       />
@@ -114,11 +91,7 @@ function DispatcherTabs() {
         options={{
           tabBarLabel: "On Road",
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? "bicycle" : "bicycle-outline"}
-              size={24}
-              color={color}
-            />
+            <Ionicons name={focused ? "bicycle" : "bicycle-outline"} size={24} color={color} />
           ),
         }}
       />
@@ -127,11 +100,7 @@ function DispatcherTabs() {
         component={WalletScreen}
         options={{
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? "wallet" : "wallet-outline"}
-              size={24}
-              color={color}
-            />
+            <Ionicons name={focused ? "wallet" : "wallet-outline"} size={24} color={color} />
           ),
         }}
       />
@@ -140,11 +109,7 @@ function DispatcherTabs() {
         component={ProfileScreen}
         options={{
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? "business" : "business-outline"}
-              size={24}
-              color={color}
-            />
+            <Ionicons name={focused ? "business" : "business-outline"} size={24} color={color} />
           ),
         }}
       />
@@ -152,12 +117,15 @@ function DispatcherTabs() {
   );
 }
 
-// --- 3. MAIN NAVIGATION (With Lifecycle Listener) ---
+// --- 3. MAIN NAVIGATION ---
 const NavigationContent = React.memo(function NavigationContent() {
- const { isAuthenticated, isLoading, user } = useAuth(); // Get user to check verified status
-  const [hasSeenOnboarding, setHasSeenOnboarding] = React.useState<boolean | null>(null);
+  const { isAuthenticated, isLoading, user } = useAuth();
+  const [hasSeenOnboarding, setHasSeenOnboarding] = useState<boolean | null>(null);
 
-  React.useEffect(() => {
+  useEffect(() => {
+    // 🟢 UNCOMMENT THIS LINE BELOW ONCE TO RESET ONBOARDING, THEN RE-COMMENT IT
+    // tokenStorage.removeItem('hasSeenOnboarding');
+
     tokenStorage.getItem('hasSeenOnboarding').then(val => {
         setHasSeenOnboarding(!!val);
     });
@@ -165,14 +133,14 @@ const NavigationContent = React.memo(function NavigationContent() {
 
   if (isLoading || hasSeenOnboarding === null) {
     return <LoadingScreen />;
-   }
+  }
 
   return (
     <NavigationContainer>
-      <StatusBar style="dark" />
+      {/* 🔴 FIX: Removed StatusBar from here to prevent re-render twitching */}
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {isAuthenticated ? (
-          // AUTHENTICATED FLOW
+          // --- AUTHENTICATED FLOW ---
           user?.isVerified ? (
              // VERIFIED -> DASHBOARD
              <>
@@ -184,7 +152,7 @@ const NavigationContent = React.memo(function NavigationContent() {
              <Stack.Screen name="PendingVerification" component={PendingVerificationScreen} />
           )
         ) : (
-          // UNAUTHENTICATED FLOW
+          // --- UNAUTHENTICATED FLOW ---
           <>
             {!hasSeenOnboarding && (
                <Stack.Screen name="Onboarding" component={OnboardingScreen} />
@@ -202,10 +170,13 @@ const NavigationContent = React.memo(function NavigationContent() {
 });
 
 export default function App() {
-  usePushNotification()
+  usePushNotification(); // Initialize Push Notifications
+
   return (
     <QueryClientProvider client={queryClient}>
       <SafeAreaProvider>
+        {/* 🟢 FIX: Moved StatusBar here for stability */}
+        <StatusBar style="dark" backgroundColor="transparent" translucent />
         <AuthProvider>
           <SocketProvider>
             <NavigationContent />
@@ -224,4 +195,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  loadingLogo: {
+    width: 100,
+    height: 100,
+    marginBottom: 20,
+    resizeMode: "contain",
+  }
 });

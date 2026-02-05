@@ -1,12 +1,25 @@
 import React, { useState, useCallback } from "react";
-import { 
-  View, Text, FlatList, TouchableOpacity, Image, StyleSheet, RefreshControl, 
-  ActivityIndicator, StatusBar, Switch
+import {
+  View,
+  Text,
+  FlatList,
+  TouchableOpacity,
+  Image,
+  StyleSheet,
+  RefreshControl,
+  ActivityIndicator,
+  StatusBar,
+  Switch,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "../context/themeContext";
 import { useAuth } from "../context/authContext";
-import { useGetAvailableOrders, useGetHistory, useAcceptOrder, useGetActiveOrder } from "../services/rider/rider.queries";
+import {
+  useGetAvailableOrders,
+  useGetHistory,
+  useAcceptOrder,
+  useGetActiveOrder,
+} from "../services/rider/rider.queries";
 import { RiderOrder } from "../types/rider.types";
 import { COLORS, SHADOWS } from "../constants/theme";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
@@ -17,56 +30,78 @@ export default function DashboardScreen() {
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
-  
+
   // State
-  const [activeTab, setActiveTab] = useState<'new' | 'history'>('new');
+  const [activeTab, setActiveTab] = useState<"new" | "history">("new");
   const [isOnline, setIsOnline] = useState(true);
 
   // Queries
   const { data: activeOrder, refetch: refetchActive } = useGetActiveOrder();
-  const { data: availableOrders, isLoading: loadingNew, refetch: refetchNew } = useGetAvailableOrders();
-  const { data: historyOrders, isLoading: loadingHistory, refetch: refetchHistory } = useGetHistory();
+  const {
+    data: availableOrders,
+    isLoading: loadingNew,
+    refetch: refetchNew,
+  } = useGetAvailableOrders();
+  const {
+    data: historyOrders,
+    isLoading: loadingHistory,
+    refetch: refetchHistory,
+  } = useGetHistory();
   const { mutate: acceptOrder, isPending: isAccepting } = useAcceptOrder();
 
   // Refresh Logic
   const onRefresh = useCallback(() => {
     refetchActive();
-    if (activeTab === 'new') refetchNew();
+    if (activeTab === "new") refetchNew();
     else refetchHistory();
   }, [activeTab, refetchActive, refetchNew, refetchHistory]);
 
   // Auto-refresh when screen appears
   useFocusEffect(
     useCallback(() => {
-        onRefresh();
-    }, [onRefresh])
+      onRefresh();
+    }, [onRefresh]),
   );
 
   // --- HEADER SECTION ---
   const renderHeader = () => {
     const isBusy = !!activeOrder;
-    const statusColor = isBusy ? '#F59E0B' : (isOnline ? '#10B981' : '#9CA3AF');
-    const statusText = isBusy ? 'On Delivery' : (isOnline ? 'You are Online' : 'You are Offline');
+    const isActive = isOnline || isBusy;
 
     return (
-      <View style={[styles.header, { paddingTop: insets.top + 10, backgroundColor: colors.background }]}>
-        <View>
-           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-              <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-              <Text style={[styles.statusText, { color: statusColor }]}>{statusText}</Text>
-           </View>
-           <Text style={[styles.title, { color: colors.text }]}>Hello, {user?.name?.split(' ')[0]}</Text>
+      <View
+        style={[
+          styles.header,
+          { paddingTop: insets.top + 16, backgroundColor: colors.background },
+        ]}
+      >
+        <View style={styles.headerLeft}>
+          <Text style={[styles.greeting, { color: colors.textLight }]}>
+            {isBusy ? "On Delivery" : isOnline ? "Available" : "Offline"}
+          </Text>
+          <Text style={[styles.title, { color: colors.text }]}>
+            Hello, {user?.name?.split(" ")[0]}
+          </Text>
         </View>
-        
-        {/* Toggle Switch */}
-        <View style={styles.switchWrapper}>
-            <Switch
-                value={isOnline || isBusy}
-                onValueChange={setIsOnline}
-                trackColor={{ false: '#E5E7EB', true: COLORS.primary }}
-                thumbColor={'white'}
-                disabled={isBusy} 
-            />
+
+        {/* Status Indicator & Switch */}
+        <View style={styles.headerRight}>
+          <View
+            style={[
+              styles.statusIndicator,
+              { backgroundColor: isActive ? COLORS.primary : colors.border },
+            ]}
+          >
+            <View style={styles.statusDot} />
+          </View>
+          <Switch
+            value={isActive}
+            onValueChange={setIsOnline}
+            trackColor={{ false: colors.border, true: `${COLORS.primary}40` }}
+            thumbColor={isActive ? COLORS.primary : colors.textLight}
+            disabled={isBusy}
+            ios_backgroundColor={colors.border}
+          />
         </View>
       </View>
     );
@@ -74,142 +109,294 @@ export default function DashboardScreen() {
 
   // --- TAB SECTION ---
   const renderTabs = () => (
-    <View style={styles.tabContainer}>
-      <TouchableOpacity 
-        style={[styles.tabBtn, activeTab === 'new' && styles.activeTabBtn]} 
-        onPress={() => setActiveTab('new')}
+    <View style={[styles.tabContainer, { backgroundColor: colors.surface }]}>
+      <TouchableOpacity
+        style={[
+          styles.tabBtn,
+          activeTab === "new" && [
+            styles.activeTabBtn,
+            { backgroundColor: colors.background },
+          ],
+        ]}
+        onPress={() => setActiveTab("new")}
       >
-        <Text style={[styles.tabText, activeTab === 'new' && styles.activeTabText]}>New Requests</Text>
-        {availableOrders?.length ? (
-            <View style={styles.badge}><Text style={styles.badgeText}>{availableOrders.length}</Text></View>
-        ) : null}
+        <Text
+          style={[
+            styles.tabText,
+            { color: colors.textLight },
+            activeTab === "new" && [
+              styles.activeTabText,
+              { color: colors.text },
+            ],
+          ]}
+        >
+          Available
+        </Text>
+        {availableOrders && availableOrders.length > 0 && (
+          <View style={[styles.badge, { backgroundColor: COLORS.primary }]}>
+            <Text style={styles.badgeText}>{availableOrders.length}</Text>
+          </View>
+        )}
       </TouchableOpacity>
-      <TouchableOpacity 
-        style={[styles.tabBtn, activeTab === 'history' && styles.activeTabBtn]} 
-        onPress={() => setActiveTab('history')}
+
+      <TouchableOpacity
+        style={[
+          styles.tabBtn,
+          activeTab === "history" && [
+            styles.activeTabBtn,
+            { backgroundColor: colors.background },
+          ],
+        ]}
+        onPress={() => setActiveTab("history")}
       >
-        <Text style={[styles.tabText, activeTab === 'history' && styles.activeTabText]}>History</Text>
+        <Text
+          style={[
+            styles.tabText,
+            { color: colors.textLight },
+            activeTab === "history" && [
+              styles.activeTabText,
+              { color: colors.text },
+            ],
+          ]}
+        >
+          Completed
+        </Text>
       </TouchableOpacity>
     </View>
   );
 
-  // --- 1. NEW ORDER CARD (Original Enhanced) ---
+  // --- NEW ORDER CARD ---
   const renderNewOrder = ({ item }: { item: RiderOrder }) => (
-    <View style={[styles.card, { backgroundColor: colors.surface }]}>
+    <View
+      style={[
+        styles.card,
+        { backgroundColor: colors.surface, borderColor: colors.border },
+      ]}
+    >
+      {/* Restaurant Header */}
       <View style={styles.cardHeader}>
-        <Image source={{ uri: item.restaurant.imageUrl || "https://via.placeholder.com/100" }} style={styles.restImg} />
-        <View style={{ flex: 1, marginLeft: 12 }}>
-          <Text style={[styles.restName, { color: colors.text }]}>{item.restaurant.name}</Text>
-          <Text style={styles.restAddr} numberOfLines={1}>{item.restaurant.address}</Text>
-        </View>
-        <View style={styles.priceBadge}>
-          <Text style={styles.priceText}>₦{item.deliveryFee}</Text>
+        <Image
+          source={{
+            uri: item.restaurant.imageUrl || "https://via.placeholder.com/100",
+          }}
+          style={styles.restImg}
+        />
+        <View style={styles.restInfo}>
+          <Text
+            style={[styles.restName, { color: colors.text }]}
+            numberOfLines={1}
+          >
+            {item.restaurant.name}
+          </Text>
+          <Text
+            style={[styles.restAddr, { color: colors.textLight }]}
+            numberOfLines={1}
+          >
+            {item.restaurant.address}
+          </Text>
         </View>
       </View>
 
-      <View style={styles.divider} />
+      {/* Delivery Fee */}
+      <View
+        style={[styles.feeContainer, { backgroundColor: colors.background }]}
+      >
+        <Text style={[styles.feeLabel, { color: colors.textLight }]}>
+          Delivery Fee
+        </Text>
+        <Text style={[styles.feeAmount, { color: COLORS.primary }]}>
+          ₦{item.deliveryFee}
+        </Text>
+      </View>
 
+      {/* Route */}
       <View style={styles.routeContainer}>
-        <View style={styles.routeRow}>
-           <View style={[styles.dot, { backgroundColor: '#F59E0B' }]} />
-           <Text style={[styles.routeAddress, { color: colors.text }]} numberOfLines={1}>
-             {item.restaurant.address}
-           </Text>
+        <View style={styles.routePoint}>
+          <View
+            style={[styles.routeDot, { backgroundColor: colors.textLight }]}
+          />
+          <View style={styles.routeTextContainer}>
+            <Text style={[styles.routeLabel, { color: colors.textLight }]}>
+              Pickup
+            </Text>
+            <Text
+              style={[styles.routeAddress, { color: colors.text }]}
+              numberOfLines={2}
+            >
+              {item.restaurant.address}
+            </Text>
+          </View>
         </View>
-        <View style={styles.connectorLine} />
-        <View style={styles.routeRow}>
-           <View style={[styles.dot, { backgroundColor: '#10B981' }]} />
-           <Text style={[styles.routeAddress, { color: colors.text }]} numberOfLines={1}>
-             {item.deliveryAddress}
-           </Text>
+
+        <View style={[styles.routeLine, { backgroundColor: colors.border }]} />
+
+        <View style={styles.routePoint}>
+          <View
+            style={[styles.routeDot, { backgroundColor: COLORS.primary }]}
+          />
+          <View style={styles.routeTextContainer}>
+            <Text style={[styles.routeLabel, { color: colors.textLight }]}>
+              Dropoff
+            </Text>
+            <Text
+              style={[styles.routeAddress, { color: colors.text }]}
+              numberOfLines={2}
+            >
+              {item.deliveryAddress}
+            </Text>
+          </View>
         </View>
       </View>
 
-      <TouchableOpacity 
-        style={styles.acceptBtn} 
+      {/* Accept Button */}
+      <TouchableOpacity
+        style={[styles.acceptBtn, { backgroundColor: COLORS.primary }]}
         onPress={() => acceptOrder(item.id)}
         disabled={isAccepting}
+        activeOpacity={0.8}
       >
-        {isAccepting ? <ActivityIndicator color="white" /> : <Text style={styles.btnText}>Accept Order</Text>}
+        {isAccepting ? (
+          <ActivityIndicator color="white" />
+        ) : (
+          <Text style={styles.btnText}>Accept Order</Text>
+        )}
       </TouchableOpacity>
     </View>
   );
 
-  // --- 2. HISTORY CARD (Pro Version) ---
+  // --- HISTORY CARD ---
   const renderHistory = ({ item }: { item: RiderOrder }) => {
-    // Check if items exist (backend must return them)
-    const itemsText = item.items && item.items.length > 0 
-        ? item.items.map(i => `${i.quantity}x ${i.menuItemName}`).join(", ") 
-        : "Order details";
-    
+    const itemsText =
+      item.items && item.items.length > 0
+        ? item.items.map((i) => `${i.quantity}x ${i.menuItemName}`).join(", ")
+        : "Order completed";
+
     return (
-      <View style={[styles.historyCard, { backgroundColor: colors.surface }]}>
-        
-        {/* Header: Date | ID | Status */}
+      <View
+        style={[
+          styles.historyCard,
+          { backgroundColor: colors.surface, borderColor: colors.border },
+        ]}
+      >
+        {/* Header */}
         <View style={styles.historyHeader}>
-            <View>
-                <Text style={[styles.historyDate, { color: colors.textLight }]}>
-                    {format(new Date(item.createdAt), "MMM d, h:mm a")}
-                </Text>
-                <Text style={styles.historyRef}>#{item.reference}</Text>
-            </View>
-            <View style={styles.successBadge}>
-                <Ionicons name="checkmark-done" size={12} color="#10B981" />
-                <Text style={styles.successText}>Delivered</Text>
-            </View>
-        </View>
-        
-        <View style={styles.historyDivider} />
-
-        {/* Main: Restaurant & Earnings */}
-        <View style={styles.historyMain}>
-            <Image 
-                source={{ uri: item.restaurant.imageUrl || "https://via.placeholder.com/100" }} 
-                style={styles.historyImg} 
+          <View style={styles.historyHeaderLeft}>
+            <Text style={[styles.historyDate, { color: colors.textLight }]}>
+              {format(new Date(item.createdAt), "MMM d, h:mm a")}
+            </Text>
+            <Text style={[styles.historyRef, { color: colors.textLight }]}>
+              #{item.reference}
+            </Text>
+          </View>
+          <View
+            style={[
+              styles.completedBadge,
+              { backgroundColor: `${COLORS.primary}15` },
+            ]}
+          >
+            <View
+              style={[styles.completedDot, { backgroundColor: COLORS.primary }]}
             />
-            <View style={{ flex: 1, paddingHorizontal: 12 }}>
-                <Text style={[styles.historyName, { color: colors.text }]}>{item.restaurant.name}</Text>
-                <Text style={[styles.historyItems, { color: colors.textLight }]} numberOfLines={1}>
-                    {itemsText}
-                </Text>
-            </View>
-            <Text style={styles.historyPrice}>+₦{item.deliveryFee}</Text>
+            <Text style={[styles.completedText, { color: COLORS.primary }]}>
+              Completed
+            </Text>
+          </View>
         </View>
 
-        {/* Footer: Mini Route Visualization */}
-        <View style={styles.historyFooter}>
-             <View style={styles.miniRouteRow}>
-                <View style={[styles.miniDot, { backgroundColor: '#F59E0B' }]} />
-                <Text style={styles.miniAddress} numberOfLines={1}>{item.restaurant.address}</Text>
-             </View>
-             <View style={styles.miniConnector} />
-             <View style={styles.miniRouteRow}>
-                <View style={[styles.miniDot, { backgroundColor: '#10B981' }]} />
-                <Text style={styles.miniAddress} numberOfLines={1}>{item.deliveryAddress}</Text>
-             </View>
+        {/* Restaurant & Items */}
+        <View style={styles.historyMain}>
+          <Image
+            source={{
+              uri:
+                item.restaurant.imageUrl || "https://via.placeholder.com/100",
+            }}
+            style={styles.historyImg}
+          />
+          <View style={styles.historyInfo}>
+            <Text
+              style={[styles.historyName, { color: colors.text }]}
+              numberOfLines={1}
+            >
+              {item.restaurant.name}
+            </Text>
+            <Text
+              style={[styles.historyItems, { color: colors.textLight }]}
+              numberOfLines={1}
+            >
+              {itemsText}
+            </Text>
+          </View>
+          <Text style={[styles.historyEarnings, { color: COLORS.primary }]}>
+            +₦{item.deliveryFee}
+          </Text>
         </View>
 
+        {/* Mini Route */}
+        <View
+          style={[styles.miniRoute, { backgroundColor: colors.background }]}
+        >
+          <View style={styles.miniRoutePoint}>
+            <View
+              style={[styles.miniDot, { backgroundColor: colors.textLight }]}
+            />
+            <Text
+              style={[styles.miniText, { color: colors.textLight }]}
+              numberOfLines={1}
+            >
+              {item.restaurant.address}
+            </Text>
+          </View>
+          <View style={styles.miniArrow}>
+            <Ionicons name="arrow-down" size={12} color={colors.textLight} />
+          </View>
+          <View style={styles.miniRoutePoint}>
+            <View
+              style={[styles.miniDot, { backgroundColor: COLORS.primary }]}
+            />
+            <Text
+              style={[styles.miniText, { color: colors.textLight }]}
+              numberOfLines={1}
+            >
+              {item.deliveryAddress}
+            </Text>
+          </View>
+        </View>
       </View>
     );
   };
 
   // --- OFFLINE STATE ---
   if (!isOnline && !activeOrder) {
-      return (
-          <View style={[styles.container, { backgroundColor: colors.background }]}>
-              {renderHeader()}
-              <View style={styles.offlineBox}>
-                  <View style={styles.offlineIconBox}>
-                    <MaterialIcons name="cloud-off" size={60} color="#9CA3AF" />
-                  </View>
-                  <Text style={[styles.offlineTitle, { color: colors.text }]}>You are Offline</Text>
-                  <Text style={styles.offlineSub}>Go online to start receiving orders.</Text>
-                  <TouchableOpacity style={styles.goOnlineBtn} onPress={() => setIsOnline(true)}>
-                      <Text style={styles.btnText}>Go Online</Text>
-                  </TouchableOpacity>
-              </View>
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
+        {renderHeader()}
+        <View style={styles.offlineContainer}>
+          <View
+            style={[styles.offlineIcon, { backgroundColor: colors.surface }]}
+          >
+            <MaterialIcons
+              name="cloud-off"
+              size={48}
+              color={colors.textLight}
+            />
           </View>
-      )
+          <Text style={[styles.offlineTitle, { color: colors.text }]}>
+            You&apos;re Offline
+          </Text>
+          <Text style={[styles.offlineSubtitle, { color: colors.textLight }]}>
+            Turn on to start receiving delivery requests
+          </Text>
+          <TouchableOpacity
+            style={[styles.goOnlineBtn, { backgroundColor: COLORS.primary }]}
+            onPress={() => setIsOnline(true)}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.btnText}>Go Online</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
   }
 
   return (
@@ -217,19 +404,36 @@ export default function DashboardScreen() {
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
       {renderHeader()}
       {renderTabs()}
-      
-      <FlatList 
-        data={activeTab === 'new' ? availableOrders : historyOrders}
-        keyExtractor={item => item.id}
-        renderItem={activeTab === 'new' ? renderNewOrder : renderHistory}
-        contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
-        refreshControl={<RefreshControl refreshing={activeTab === 'new' ? loadingNew : loadingHistory} onRefresh={onRefresh} />}
+
+      <FlatList
+        data={activeTab === "new" ? availableOrders : historyOrders}
+        keyExtractor={(item) => item.id}
+        renderItem={activeTab === "new" ? renderNewOrder : renderHistory}
+        contentContainerStyle={styles.listContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={activeTab === "new" ? loadingNew : loadingHistory}
+            onRefresh={onRefresh}
+            tintColor={COLORS.primary}
+            colors={[COLORS.primary]}
+          />
+        }
         ListEmptyComponent={
-          <View style={styles.emptyBox}>
-             <MaterialIcons name={activeTab === 'new' ? "delivery-dining" : "history"} size={60} color="#E5E7EB" />
-             <Text style={{ color: colors.textLight, marginTop: 10 }}>
-                {activeTab === 'new' ? "No new requests nearby." : "No completed orders yet."}
-             </Text>
+          <View style={styles.emptyContainer}>
+            <View
+              style={[styles.emptyIcon, { backgroundColor: colors.surface }]}
+            >
+              <MaterialIcons
+                name={activeTab === "new" ? "delivery-dining" : "history"}
+                size={48}
+                color={colors.textLight}
+              />
+            </View>
+            <Text style={[styles.emptyText, { color: colors.textLight }]}>
+              {activeTab === "new"
+                ? "No delivery requests available"
+                : "No completed deliveries yet"}
+            </Text>
           </View>
         }
       />
@@ -238,65 +442,369 @@ export default function DashboardScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  header: { paddingHorizontal: 20, paddingBottom: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  statusDot: { width: 8, height: 8, borderRadius: 4 },
-  statusText: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase' },
-  title: { fontSize: 24, fontWeight: '800' },
-  switchWrapper: { transform: [{ scale: 0.9 }] },
+  container: {
+    flex: 1,
+  },
+
+  // Header
+  header: {
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  headerLeft: {
+    flex: 1,
+  },
+  greeting: {
+    fontSize: 13,
+    fontWeight: "600",
+    marginBottom: 4,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: "700",
+    letterSpacing: -0.5,
+  },
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  statusIndicator: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "white",
+  },
 
   // Tabs
-  tabContainer: { flexDirection: 'row', marginHorizontal: 20, marginBottom: 12, backgroundColor: '#F3F4F6', borderRadius: 12, padding: 4 },
-  tabBtn: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 10, flexDirection: 'row', justifyContent: 'center', gap: 6 },
-  activeTabBtn: { backgroundColor: 'white', elevation: 2 },
-  tabText: { fontWeight: '600', color: '#9CA3AF' },
-  activeTabText: { color: COLORS.primary },
-  badge: { backgroundColor: '#EF4444', borderRadius: 10, paddingHorizontal: 6, paddingVertical: 1 },
-  badgeText: { color: 'white', fontSize: 10, fontWeight: 'bold' },
+  tabContainer: {
+    flexDirection: "row",
+    marginHorizontal: 20,
+    marginBottom: 16,
+    borderRadius: 12,
+    padding: 3,
+  },
+  tabBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: "center",
+    borderRadius: 10,
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 6,
+  },
+  activeTabBtn: {
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  tabText: {
+    fontWeight: "600",
+    fontSize: 15,
+    letterSpacing: -0.2,
+  },
+  activeTabText: {
+    fontWeight: "700",
+  },
+  badge: {
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    minWidth: 20,
+    alignItems: "center",
+  },
+  badgeText: {
+    color: "white",
+    fontSize: 11,
+    fontWeight: "700",
+  },
 
   // New Order Card
-  card: { borderRadius: 20, padding: 16, marginBottom: 16, ...SHADOWS.medium },
-  cardHeader: { flexDirection: 'row', alignItems: 'center' },
-  restImg: { width: 48, height: 48, borderRadius: 10, backgroundColor: '#eee' },
-  restName: { fontWeight: 'bold', fontSize: 16 },
-  restAddr: { fontSize: 12, color: '#6B7280' },
-  priceBadge: { marginLeft: 'auto', backgroundColor: '#ECFDF5', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
-  priceText: { color: '#10B981', fontWeight: 'bold', fontSize: 16 },
-  divider: { height: 1, backgroundColor: '#F3F4F6', marginVertical: 12 },
-  routeContainer: { marginLeft: 4 },
-  routeRow: { flexDirection: 'row', alignItems: 'center', marginVertical: 4 },
-  dot: { width: 10, height: 10, borderRadius: 5, marginRight: 12 },
-  routeAddress: { fontSize: 14, fontWeight: '500' },
-  connectorLine: { width: 2, height: 16, backgroundColor: '#E5E7EB', marginLeft: 4, marginVertical: -2 },
-  acceptBtn: { backgroundColor: COLORS.primary, marginTop: 16, padding: 16, borderRadius: 14, alignItems: 'center' },
-  btnText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
+  card: {
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  cardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  restImg: {
+    width: 56,
+    height: 56,
+    borderRadius: 12,
+    backgroundColor: "#F3F4F6",
+  },
+  restInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  restName: {
+    fontWeight: "700",
+    fontSize: 16,
+    marginBottom: 4,
+    letterSpacing: -0.3,
+  },
+  restAddr: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  feeContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 12,
+    borderRadius: 10,
+    marginBottom: 16,
+  },
+  feeLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  feeAmount: {
+    fontSize: 20,
+    fontWeight: "700",
+    letterSpacing: -0.5,
+  },
+  routeContainer: {
+    marginBottom: 16,
+  },
+  routePoint: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  routeDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginTop: 4,
+  },
+  routeTextContainer: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  routeLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  routeAddress: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "500",
+  },
+  routeLine: {
+    width: 2,
+    height: 20,
+    marginLeft: 4,
+    marginVertical: 4,
+  },
+  acceptBtn: {
+    padding: 16,
+    borderRadius: 12,
+    alignItems: "center",
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  btnText: {
+    color: "white",
+    fontWeight: "700",
+    fontSize: 16,
+    letterSpacing: -0.3,
+  },
 
-  // --- HISTORY CARD STYLES (NEW) ---
-  historyCard: { padding: 16, borderRadius: 18, marginBottom: 12, ...SHADOWS.small, borderWidth: 1, borderColor: '#F3F4F6' },
-  historyHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  historyDate: { fontSize: 12, fontWeight: '500' },
-  historyRef: { fontSize: 10, color: '#9CA3AF', fontWeight: 'bold', marginTop: 2 },
-  successBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#ECFDF5', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, gap: 4 },
-  successText: { color: '#10B981', fontSize: 11, fontWeight: '700' },
-  historyDivider: { height: 1, backgroundColor: '#F3F4F6', marginVertical: 12 },
-  historyMain: { flexDirection: 'row', alignItems: 'center' },
-  historyImg: { width: 40, height: 40, borderRadius: 8, backgroundColor: '#eee' },
-  historyName: { fontWeight: '700', fontSize: 15 },
-  historyItems: { fontSize: 12, marginTop: 2, fontStyle: 'italic' },
-  historyPrice: { fontWeight: '800', fontSize: 15, color: COLORS.primary },
-  
-  // Mini Route Visualization
-  historyFooter: { marginTop: 12, backgroundColor: '#F9FAFB', padding: 10, borderRadius: 8 },
-  miniRouteRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 2 },
-  miniDot: { width: 6, height: 6, borderRadius: 3, marginRight: 8 },
-  miniAddress: { fontSize: 11, color: '#6B7280', flex: 1 },
-  miniConnector: { width: 1, height: 10, backgroundColor: '#D1D5DB', marginLeft: 2.5, marginVertical: 2 },
+  // History Card
+  historyCard: {
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  historyHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  historyHeaderLeft: {
+    flex: 1,
+  },
+  historyDate: {
+    fontSize: 13,
+    fontWeight: "600",
+    marginBottom: 2,
+  },
+  historyRef: {
+    fontSize: 11,
+    fontWeight: "600",
+    letterSpacing: 0.5,
+  },
+  completedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    gap: 5,
+  },
+  completedDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  completedText: {
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: -0.2,
+  },
+  historyMain: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  historyImg: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: "#F3F4F6",
+  },
+  historyInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  historyName: {
+    fontWeight: "700",
+    fontSize: 15,
+    marginBottom: 3,
+    letterSpacing: -0.2,
+  },
+  historyItems: {
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  historyEarnings: {
+    fontWeight: "800",
+    fontSize: 16,
+    letterSpacing: -0.3,
+    marginLeft: 8,
+  },
+  miniRoute: {
+    padding: 10,
+    borderRadius: 10,
+  },
+  miniRoutePoint: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  miniDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: 8,
+  },
+  miniText: {
+    fontSize: 11,
+    flex: 1,
+    lineHeight: 16,
+  },
+  miniArrow: {
+    marginLeft: 1,
+    marginVertical: 2,
+  },
 
-  // Empty & Offline States
-  emptyBox: { alignItems: 'center', marginTop: 60 },
-  offlineBox: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingBottom: 100 },
-  offlineIconBox: { width: 100, height: 100, borderRadius: 50, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
-  offlineTitle: { fontSize: 20, fontWeight: 'bold', marginTop: 0 },
-  offlineSub: { color: '#6B7280', marginBottom: 30, marginTop: 8 },
-  goOnlineBtn: { backgroundColor: COLORS.primary, paddingHorizontal: 40, paddingVertical: 16, borderRadius: 16 },
+  // List
+  listContent: {
+    padding: 20,
+    paddingBottom: 100,
+  },
+
+  // Empty State
+  emptyContainer: {
+    alignItems: "center",
+    marginTop: 80,
+    paddingHorizontal: 40,
+  },
+  emptyIcon: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  emptyText: {
+    fontSize: 15,
+    textAlign: "center",
+    lineHeight: 22,
+  },
+
+  // Offline State
+  offlineContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 40,
+    paddingBottom: 80,
+  },
+  offlineIcon: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 20,
+  },
+  offlineTitle: {
+    fontSize: 24,
+    fontWeight: "700",
+    marginBottom: 8,
+    letterSpacing: -0.5,
+  },
+  offlineSubtitle: {
+    fontSize: 15,
+    textAlign: "center",
+    marginBottom: 32,
+    lineHeight: 22,
+  },
+  goOnlineBtn: {
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+    borderRadius: 12,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 3,
+  },
 });

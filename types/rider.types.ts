@@ -36,6 +36,7 @@ export interface RiderOrder {
   restaurant: RiderRestaurant;
   customer: RiderCustomer;
   deliveryAddress: string;
+  deliveryPhoneNumber: string
   deliveryLatitude: number;
   deliveryLongitude: number;
   items: RiderOrderItem[];

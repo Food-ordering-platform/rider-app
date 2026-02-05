@@ -1,15 +1,15 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { 
   View, Text, StyleSheet, Dimensions, TouchableOpacity, Modal, TextInput, 
-  Linking, Platform, StatusBar, ActivityIndicator, SafeAreaView, Image 
+  Linking, Platform, StatusBar, ActivityIndicator, Image, Alert
 } from "react-native";
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
 import * as Location from "expo-location";
-import { Ionicons, MaterialIcons, FontAwesome5, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons, MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import { useGetActiveOrder, useConfirmPickup, useConfirmDelivery } from "../services/rider/rider.queries";
-import { COLORS, SHADOWS, SPACING } from "../constants/theme";
+import { COLORS, SHADOWS } from "../constants/theme";
 
 const { width, height } = Dimensions.get("window");
 
@@ -78,15 +78,25 @@ export default function ActiveTripScreen({ navigation }: any) {
     );
   }
 
-  // --- 4. ACTIVE ORDER LOGIC ---
+  // --- 4. ACTIVE ORDER LOGIC (UPDATED) ---
   const isPickingUp = order.status === "RIDER_ACCEPTED";
   
   // Theme Colors based on Stage
   const STAGE_COLOR = isPickingUp ? '#F59E0B' : '#10B981'; // Amber (Pickup) vs Emerald (Delivery)
   const BTN_COLOR = isPickingUp ? COLORS.primary : '#10B981';
 
-  // Target Details
-  const target = isPickingUp ? order.restaurant : order.customer;
+  // 🟢 LOGIC UPDATE: Prioritize Order Data over Profile Data
+  const targetName = isPickingUp ? order.restaurant.name : order.customer.name;
+  
+  const targetAddress = isPickingUp 
+    ? order.restaurant.address 
+    : (order.deliveryAddress || order.customer.address);
+    
+  // 🟢 FIX: Use 'deliveryPhone' (Checkout input) if available, fallback to profile phone
+  const targetPhone = isPickingUp 
+    ? order.restaurant.phone 
+    : (order.deliveryPhoneNumber || order.customer.phone);
+
   const targetCoords = isPickingUp 
     ? { lat: order.restaurant.latitude, lng: order.restaurant.longitude, title: order.restaurant.name }
     : { lat: order.deliveryLatitude, lng: order.deliveryLongitude, title: order.customer.name };
@@ -117,7 +127,10 @@ export default function ActiveTripScreen({ navigation }: any) {
   };
 
   const makeCall = (phone?: string | null) => {
-    if (!phone) return;
+    if (!phone) {
+        Alert.alert("No Phone Number", "No phone number is available for this contact.");
+        return;
+    }
     let phoneUrl = Platform.OS === 'android' ? `tel:${phone}` : `telprompt:${phone}`;
     Linking.openURL(phoneUrl);
   };
@@ -137,11 +150,11 @@ export default function ActiveTripScreen({ navigation }: any) {
           longitudeDelta: 0.015,
         }}
         showsUserLocation={true}
-        showsMyLocationButton={false} // We use our own button
+        showsMyLocationButton={false}
       >
         <Marker 
             coordinate={{ latitude: targetCoords.lat, longitude: targetCoords.lng }} 
-            title={targetCoords.title} 
+            title={targetName} 
         >
             <View style={[styles.customMarker, { borderColor: STAGE_COLOR }]}>
                 <MaterialIcons name={isPickingUp ? "storefront" : "person"} size={20} color="white" />
@@ -192,15 +205,16 @@ export default function ActiveTripScreen({ navigation }: any) {
             
             <View style={{ flex: 1, paddingHorizontal: 12 }}>
                 <Text style={styles.targetLabel}>{isPickingUp ? "Restaurant" : "Customer"}</Text>
-                <Text style={styles.targetName} numberOfLines={1}>{target.name}</Text>
+                {/* 🟢 UPDATED UI: Using new variables */}
+                <Text style={styles.targetName} numberOfLines={1}>{targetName}</Text>
                 <Text style={styles.targetAddress} numberOfLines={1}>
-                    {isPickingUp ? order.restaurant.address : order.deliveryAddress}
+                    {targetAddress}
                 </Text>
             </View>
 
             <TouchableOpacity 
                 style={[styles.callBtn, { backgroundColor: STAGE_COLOR }]}
-                onPress={() => makeCall(target.phone)}
+                onPress={() => makeCall(targetPhone)} /* 🟢 UPDATED: Using targetPhone */
             >
                 <Ionicons name="call" size={20} color="white" />
             </TouchableOpacity>
@@ -294,7 +308,7 @@ const styles = StyleSheet.create({
   goHomeText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
 
   // Map
-  map: { width: '100%', height: height * 0.60 }, // Map takes 60%
+  map: { width: '100%', height: height * 0.60 }, 
   customMarker: { backgroundColor: COLORS.primary, padding: 8, borderRadius: 20, borderWidth: 3, borderColor: 'white', elevation: 5 },
 
   // Floating Header
