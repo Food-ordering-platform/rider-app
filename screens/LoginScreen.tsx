@@ -53,7 +53,7 @@ export default function LoginScreen({ navigation } : any) {
         return;
       }
       
-      navigation.navigate("Dashboard")
+      // navigation.navigate("Dashboard")
     } catch (error: any) {
       Alert.alert("Login Failed", error?.response?.data?.message || "Invalid credentials");
     } finally {
