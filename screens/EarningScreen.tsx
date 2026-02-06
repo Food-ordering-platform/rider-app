@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import { 
   View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, TextInput, 
-  KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, StatusBar 
+  KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, StatusBar, RefreshControl 
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "../context/themeContext";
@@ -10,13 +10,14 @@ import {
   useRequestPayout, 
   useGetBanks 
 } from "../services/rider/rider.queries";
-import { COLORS, SHADOWS, SPACING } from "../constants/theme";
+import { COLORS, SHADOWS } from "../constants/theme";
 import { MaterialCommunityIcons, Ionicons, FontAwesome5 } from "@expo/vector-icons";
 import { format } from "date-fns";
 import { Bank } from "../types/rider.types";
+import { useFocusEffect } from "@react-navigation/native"; // 🟢 1. Import this
 
 export default function EarningScreen() {
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   
   // --- STATE ---
@@ -27,11 +28,27 @@ export default function EarningScreen() {
   const [showBankList, setShowBankList] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false); // 🟢 2. Refresh state
 
   // --- DATA ---
-  const { data: earnings,  refetch } = useGetRiderEarnings();
-  const { data: banks = [], } = useGetBanks();
+  const { data: earnings, refetch: refetchEarnings } = useGetRiderEarnings();
+  const { data: banks = [], refetch: refetchBanks } = useGetBanks();
   const { mutate: requestPayout, isPending } = useRequestPayout();
+
+  // 🟢 3. Handle Refresh Logic
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    // Refetch both earnings and bank list
+    await Promise.all([refetchEarnings(), refetchBanks()]);
+    setRefreshing(false);
+  }, [refetchEarnings, refetchBanks]);
+
+  // 🟢 4. Auto-fetch when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      refetchEarnings();
+    }, [refetchEarnings])
+  );
 
   // Filter banks
   const filteredBanks = useMemo(() => {
@@ -77,14 +94,13 @@ export default function EarningScreen() {
 
  const renderTransaction = ({ item }: any) => {
     const isCredit = item.type === 'CREDIT';
-    // Check if it's a pending withdrawal
-    const isPending = item.status === 'PENDING';
+    const isPendingTx = item.status === 'PENDING';
 
     let iconName = isCredit ? "arrow-bottom-left" : "arrow-top-right";
     let iconColor = isCredit ? '#10B981' : '#EF4444'; // Green vs Red
     let bgColor = isCredit ? '#ECFDF5' : '#FEF2F2';
 
-    if (isPending && !isCredit) {
+    if (isPendingTx && !isCredit) {
         iconColor = '#F59E0B'; // Orange for Pending Withdrawal
         bgColor = '#FFF7ED';
         iconName = "clock";
@@ -119,12 +135,21 @@ export default function EarningScreen() {
       {/* --- HEADER SECTION --- */}
       <View style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}>
         <Text style={styles.headerTitle}>My Wallet</Text>
-        <TouchableOpacity onPress={() => refetch()} style={styles.refreshBtn}>
-            <Ionicons name="refresh" size={20} color={COLORS.primary} />
+        <TouchableOpacity onPress={onRefresh} style={styles.refreshBtn}>
+            {refreshing ? (
+              <ActivityIndicator size="small" color={COLORS.primary} />
+            ) : (
+              <Ionicons name="refresh" size={20} color={COLORS.primary} />
+            )}
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
+      <ScrollView 
+        contentContainerStyle={{ paddingBottom: 100 }}
+        refreshControl={ // 🟢 5. Add RefreshControl here
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />
+        }
+      >
         
         {/* --- 1. MAIN BALANCE CARD (Available) --- */}
         <View style={styles.mainCard}>
@@ -184,7 +209,7 @@ export default function EarningScreen() {
         />
       </ScrollView>
 
-      {/* --- PAYOUT MODAL (Same as before but styled) --- */}
+      {/* --- PAYOUT MODAL --- */}
       <Modal visible={modalVisible} transparent animationType="slide">
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalBg}>
           <View style={[styles.modalContent, { backgroundColor: 'white' }]}>
@@ -274,7 +299,6 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 24, fontWeight: '800', color: '#111827' },
   refreshBtn: { padding: 8, backgroundColor: '#E5E7EB', borderRadius: 20 },
 
-  // Main Card
   mainCard: { 
     marginHorizontal: 20, padding: 24, borderRadius: 24, backgroundColor: COLORS.primary, 
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
@@ -285,7 +309,6 @@ const styles = StyleSheet.create({
   withdrawBtn: { backgroundColor: 'white', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 14 },
   withdrawText: { color: COLORS.primary, fontWeight: '700' },
 
-  // Stats Row
   statsRow: { flexDirection: 'row', paddingHorizontal: 20, gap: 12, marginBottom: 24 },
   statCard: { flex: 1, padding: 16, borderRadius: 20, borderWidth: 1, justifyContent: 'center' },
   statHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
@@ -293,7 +316,6 @@ const styles = StyleSheet.create({
   statValue: { fontSize: 20, fontWeight: '800' },
   statSub: { fontSize: 11, color: '#6B7280', marginTop: 2 },
 
-  // Transactions
   sectionHeader: { fontSize: 18, fontWeight: '700', color: '#1F2937', marginLeft: 20, marginBottom: 12 },
   txnItem: { flexDirection: 'row', alignItems: 'center', padding: 16, marginHorizontal: 20, marginBottom: 12, borderRadius: 16 },
   txnIcon: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
@@ -303,7 +325,6 @@ const styles = StyleSheet.create({
   emptyContainer: { alignItems: 'center', marginTop: 20 },
   emptyText: { color: '#9CA3AF' },
 
-  // Modal
   modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalContent: { padding: 24, borderTopLeftRadius: 28, borderTopRightRadius: 28 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },

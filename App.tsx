@@ -11,7 +11,6 @@ import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-cont
 // Hooks & Context
 import { usePushNotification } from "./hooks/usePushNotification";
 import { AuthProvider, useAuth } from "./context/authContext";
-import { SocketProvider } from "./context/socketContext";
 import { tokenStorage } from "./utils/storage";
 import { COLORS } from "./constants/theme";
 import { PWAInstallBanner } from "./components/PWAInstallBanner";
@@ -178,10 +177,8 @@ export default function App() {
         {/* 🟢 FIX: Moved StatusBar here for stability */}
         <StatusBar style="dark" backgroundColor="transparent" translucent />
         <AuthProvider>
-          <SocketProvider>
             <NavigationContent />
             <PWAInstallBanner />
-          </SocketProvider>
         </AuthProvider>
       </SafeAreaProvider>
     </QueryClientProvider>

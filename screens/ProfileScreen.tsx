@@ -47,7 +47,7 @@ export default function ProfileScreen() {
           <View style={styles.infoCard}>
             <View style={styles.infoRow}>
                <Ionicons name="call-outline" size={18} color="gray" />
-               <Text style={styles.infoText}>+234 801 234 5678</Text>
+               <Text style={styles.infoText}>{user?.phone}</Text>
             </View>
             <View style={styles.divider} />
             <View style={styles.infoRow}>

@@ -100,15 +100,20 @@ async function registerForPushNotificationsAsync(): Promise<string | null> {
   | Android Channel Setup
   |--------------------------------------------------------------------------
   */
-  if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync('default', {
-      name: 'default',
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 250, 250, 250],
+if (Platform.OS === 'android') {
+    // 🔔 Create a distinct "Delivery Alerts" channel
+    // We changed the ID from 'default' to 'delivery-alerts' to force a fresh setup
+    await Notifications.setNotificationChannelAsync('delivery-alerts', {
+      name: 'Urgent Delivery Alerts',
+      importance: Notifications.AndroidImportance.MAX, // pop up on screen
+      vibrationPattern: [0, 500, 200, 500], // 📳 Long-Short-Long Vibration (Aggressive)
       lightColor: '#FF231F7C',
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC, // Show content on lock screen
+      sound: 'default', // Uses system default notification sound (loud)
+      enableVibrate: true,
+      enableLights: true,
     });
   }
-
   /*
   |--------------------------------------------------------------------------
   | Must Be Physical Device
