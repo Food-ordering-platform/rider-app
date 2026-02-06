@@ -100,18 +100,28 @@ async function registerForPushNotificationsAsync(): Promise<string | null> {
   | Android Channel Setup
   |--------------------------------------------------------------------------
   */
-if (Platform.OS === 'android') {
-    // 🔔 Create a distinct "Delivery Alerts" channel
-    // We changed the ID from 'default' to 'delivery-alerts' to force a fresh setup
-    await Notifications.setNotificationChannelAsync('delivery-alerts', {
-      name: 'Urgent Delivery Alerts',
-      importance: Notifications.AndroidImportance.MAX, // pop up on screen
-      vibrationPattern: [0, 500, 200, 500], // 📳 Long-Short-Long Vibration (Aggressive)
+  if (Platform.OS === 'android') {
+    // 🚨 DELETE the old channel (optional cleanup)
+    await Notifications.deleteNotificationChannelAsync('delivery-alerts');
+    // ☢️ CREATE THE NUCLEAR CHANNEL
+    // Changing ID to 'chow-nuclear-v1' forces the phone to apply new settings
+    await Notifications.setNotificationChannelAsync('chow-nuclear-v1', {
+      name: 'IMMEDIATE Delivery Orders',
+      importance: Notifications.AndroidImportance.MAX,
+      // 📳 THE "EARTHQUAKE" PATTERN: 
+      // Wait 0ms, Vibrate 2s, Pause 0.5s, Vibrate 2s
+      vibrationPattern: [0, 2000, 500, 2000], 
       lightColor: '#FF231F7C',
-      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC, // Show content on lock screen
-      sound: 'default', // Uses system default notification sound (loud)
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+      // 🔊 THE SECRET SAUCE: Treat it like an ALARM, not a notification
+      sound: 'default',
+      audioAttributes: {
+        usage: Notifications.AndroidAudioUsage.ALARM,
+        contentType: Notifications.AndroidAudioContentType.SONIFICATION,
+      },
       enableVibrate: true,
       enableLights: true,
+      bypassDnd: true, // Try to bypass Do Not Disturb (works on some versions)
     });
   }
   /*

@@ -33,8 +33,8 @@ export default function DashboardScreen() {
   const { user } = useAuth(); // Assuming user object has 'isOnline' from DB
 
   // --- STATE ---
-  // Initialize from user profile if available, default to false (safe)
-  const [isOnline, setIsOnline] = useState(user?.isOnline ?? false); 
+  // Initialize from user profile if available, default to true (safe)
+  const [isOnline, setIsOnline] = useState(user?.isOnline ?? true); 
   const [activeTab, setActiveTab] = useState<"new" | "history">("new");
 
   // --- QUERIES & MUTATIONS ---
