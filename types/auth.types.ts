@@ -51,6 +51,7 @@ export interface User {
   phone?: string;
   isVerified: boolean
   restaurant?: Restaurant | null; 
+  isOnline: boolean
 }
 
 

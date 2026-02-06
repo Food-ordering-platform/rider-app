@@ -134,3 +134,30 @@ export const useGetHistory = () => {
     queryFn: riderService.getHistory,
   });
 };
+
+// services/rider/rider.queries.ts
+
+export const useUpdateStatus = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: (isOnline: boolean) => riderService.updateStatus(isOnline),
+    onSuccess: (data) => {
+      // 1. Update the 'user' cache if you store user profile in React Query
+      queryClient.invalidateQueries({ queryKey: ["user-profile"] });
+      
+      Toast.show({
+        type: "success",
+        text1: data.isOnline ? "You are Online 🟢" : "You are Offline 🔴",
+        text2: data.isOnline ? "Ready to receive orders" : "You won't receive orders",
+      });
+    },
+    onError: (err: any) => {
+      Toast.show({
+        type: "error",
+        text1: "Failed to update status",
+        text2: err.response?.data?.message,
+      });
+    },
+  });
+};

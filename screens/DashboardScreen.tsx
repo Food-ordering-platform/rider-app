@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -19,6 +19,7 @@ import {
   useGetHistory,
   useAcceptOrder,
   useGetActiveOrder,
+  useUpdateStatus, // 🟢 IMPORTED THIS
 } from "../services/rider/rider.queries";
 import { RiderOrder } from "../types/rider.types";
 import { COLORS, SHADOWS } from "../constants/theme";
@@ -29,25 +30,56 @@ import { useFocusEffect } from "@react-navigation/native";
 export default function DashboardScreen() {
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
-  const { user } = useAuth();
+  const { user } = useAuth(); // Assuming user object has 'isOnline' from DB
 
-  // State
+  // --- STATE ---
+  // Initialize from user profile if available, default to false (safe)
+  const [isOnline, setIsOnline] = useState(user?.isOnline ?? false); 
   const [activeTab, setActiveTab] = useState<"new" | "history">("new");
-  const [isOnline, setIsOnline] = useState(true);
 
-  // Queries
+  // --- QUERIES & MUTATIONS ---
   const { data: activeOrder, refetch: refetchActive } = useGetActiveOrder();
+  
   const {
     data: availableOrders,
     isLoading: loadingNew,
     refetch: refetchNew,
   } = useGetAvailableOrders();
+
   const {
     data: historyOrders,
     isLoading: loadingHistory,
     refetch: refetchHistory,
   } = useGetHistory();
+
   const { mutate: acceptOrder, isPending: isAccepting } = useAcceptOrder();
+  
+  // 🟢 NEW: Status Mutation
+  const { mutate: updateStatus, isPending: isToggling } = useUpdateStatus();
+
+  // --- SYNC STATE ---
+  // If the user profile updates in the background, sync the switch
+  useEffect(() => {
+    if (user?.isOnline !== undefined) {
+      setIsOnline(user.isOnline);
+    }
+  }, [user?.isOnline]);
+
+  // --- HANDLERS ---
+
+  // 🟢 Handle Online/Offline Toggle
+  const handleStatusChange = (value: boolean) => {
+    // 1. Optimistic Update (Update UI immediately)
+    setIsOnline(value);
+
+    // 2. Call API
+    updateStatus(value, {
+      onError: () => {
+        // 3. Revert if API fails
+        setIsOnline(!value);
+      },
+    });
+  };
 
   // Refresh Logic
   const onRefresh = useCallback(() => {
@@ -60,13 +92,16 @@ export default function DashboardScreen() {
   useFocusEffect(
     useCallback(() => {
       onRefresh();
-    }, [onRefresh]),
+    }, [onRefresh])
   );
 
-  // --- HEADER SECTION ---
+  // --- RENDERERS ---
+
   const renderHeader = () => {
     const isBusy = !!activeOrder;
-    const isActive = isOnline || isBusy;
+    // If you have an active order, you are "working" regardless of the switch
+    const displayStatus = isBusy ? "On Delivery" : isOnline ? "Available" : "Offline";
+    const isActiveColor = isBusy || isOnline;
 
     return (
       <View
@@ -77,10 +112,10 @@ export default function DashboardScreen() {
       >
         <View style={styles.headerLeft}>
           <Text style={[styles.greeting, { color: colors.textLight }]}>
-            {isBusy ? "On Delivery" : isOnline ? "Available" : "Offline"}
+            {displayStatus}
           </Text>
           <Text style={[styles.title, { color: colors.text }]}>
-            Hello, {user?.name?.split(" ")[0]}
+            Hello, {user?.name?.split(" ")[0] || "Rider"}
           </Text>
         </View>
 
@@ -89,17 +124,18 @@ export default function DashboardScreen() {
           <View
             style={[
               styles.statusIndicator,
-              { backgroundColor: isActive ? COLORS.primary : colors.border },
+              { backgroundColor: isActiveColor ? COLORS.primary : colors.border },
             ]}
           >
             <View style={styles.statusDot} />
           </View>
+          
           <Switch
-            value={isActive}
-            onValueChange={setIsOnline}
+            value={isOnline}
+            onValueChange={handleStatusChange} // 🟢 Connected to handler
             trackColor={{ false: colors.border, true: `${COLORS.primary}40` }}
-            thumbColor={isActive ? COLORS.primary : colors.textLight}
-            disabled={isBusy}
+            thumbColor={isOnline ? COLORS.primary : colors.textLight}
+            disabled={isBusy || isToggling} // Disable if on a trip or loading
             ios_backgroundColor={colors.border}
           />
         </View>
@@ -107,7 +143,6 @@ export default function DashboardScreen() {
     );
   };
 
-  // --- TAB SECTION ---
   const renderTabs = () => (
     <View style={[styles.tabContainer, { backgroundColor: colors.surface }]}>
       <TouchableOpacity
@@ -165,7 +200,6 @@ export default function DashboardScreen() {
     </View>
   );
 
-  // --- NEW ORDER CARD ---
   const renderNewOrder = ({ item }: { item: RiderOrder }) => (
     <View
       style={[
@@ -264,7 +298,6 @@ export default function DashboardScreen() {
     </View>
   );
 
-  // --- HISTORY CARD ---
   const renderHistory = ({ item }: { item: RiderOrder }) => {
     const itemsText =
       item.items && item.items.length > 0
@@ -387,12 +420,21 @@ export default function DashboardScreen() {
           <Text style={[styles.offlineSubtitle, { color: colors.textLight }]}>
             Turn on to start receiving delivery requests
           </Text>
+          
           <TouchableOpacity
-            style={[styles.goOnlineBtn, { backgroundColor: COLORS.primary }]}
-            onPress={() => setIsOnline(true)}
+            style={[
+              styles.goOnlineBtn, 
+              { backgroundColor: COLORS.primary, opacity: isToggling ? 0.7 : 1 }
+            ]}
+            onPress={() => handleStatusChange(true)} // 🟢 Use new handler
             activeOpacity={0.8}
+            disabled={isToggling}
           >
-            <Text style={styles.btnText}>Go Online</Text>
+            {isToggling ? (
+              <ActivityIndicator color="white" />
+            ) : (
+              <Text style={styles.btnText}>Go Online</Text>
+            )}
           </TouchableOpacity>
         </View>
       </View>
