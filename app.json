@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/rider_logo.png",
     "scheme": "riderapp",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true
@@ -21,7 +21,7 @@
       "predictiveBackGestureEnabled": false,
       "config": {
         "googleMaps": {
-          "apiKeys": "AIzaSyBWtXEl3nt3CNLis9jwjkLiV9jR0RmaE1A"
+          "apiKey": "AIzaSyBWtXEl3nt3CNLis9jwjkLiV9jR0RmaE1A"
         }
       }
     },
