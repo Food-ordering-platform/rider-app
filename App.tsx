@@ -119,6 +119,7 @@ function DispatcherTabs() {
 // --- 3. MAIN NAVIGATION ---
 const NavigationContent = React.memo(function NavigationContent() {
   const { isAuthenticated, isLoading, user } = useAuth();
+  usePushNotification(); 
   const [hasSeenOnboarding, setHasSeenOnboarding] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -169,7 +170,7 @@ const NavigationContent = React.memo(function NavigationContent() {
 });
 
 export default function App() {
-  usePushNotification(); // Initialize Push Notifications
+  
 
   return (
     <QueryClientProvider client={queryClient}>
