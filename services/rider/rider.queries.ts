@@ -143,8 +143,8 @@ export const useUpdateStatus = () => {
   return useMutation({
     mutationFn: (isOnline: boolean) => riderService.updateStatus(isOnline),
     onSuccess: (data) => {
-      // 1. Update the 'user' cache if you store user profile in React Query
-      queryClient.invalidateQueries({ queryKey: ["user-profile"] });
+      // 1. Refresh the authenticated user profile so isOnline stays in sync
+      queryClient.invalidateQueries({ queryKey: ["currentUser"] });
       
       Toast.show({
         type: "success",

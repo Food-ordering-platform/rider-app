@@ -30,11 +30,11 @@ import { useFocusEffect } from "@react-navigation/native";
 export default function DashboardScreen() {
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
-  const { user } = useAuth(); // Assuming user object has 'isOnline' from DB
+  const { user, refreshUser } = useAuth(); // user includes isOnline from backend
 
   // --- STATE ---
-  // Initialize from user profile if available, default to true (safe)
-  const [isOnline, setIsOnline] = useState(user?.isOnline ?? true); 
+  // Initialize from user profile if available, default to OFFLINE until we know
+  const [isOnline, setIsOnline] = useState(user?.isOnline ?? false); 
   const [activeTab, setActiveTab] = useState<"new" | "history">("new");
 
   // --- QUERIES & MUTATIONS ---
@@ -74,6 +74,10 @@ export default function DashboardScreen() {
 
     // 2. Call API
     updateStatus(value, {
+      onSuccess: async () => {
+        // Re-fetch user from backend to be 100% in sync
+        await refreshUser();
+      },
       onError: () => {
         // 3. Revert if API fails
         setIsOnline(!value);
