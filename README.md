@@ -1,50 +1,99 @@
-# Welcome to your Expo app 👋
+# 🛵 ChowEazy Rider App
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+![Expo](https://img.shields.io/badge/Expo-54.0-black?logo=expo)
+![React Native](https://img.shields.io/badge/React_Native-0.81-blue?logo=react)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue?logo=typescript)
+![Zustand](https://img.shields.io/badge/Zustand-5.0-orange)
+![Socket.io](https://img.shields.io/badge/Socket.io-4.8-black?logo=socket.io)
 
-## Get started
+The official **ChowEazy Rider App** is a cross-platform mobile application built specifically for delivery logistics. Built with **React Native** and **Expo**, it empowers delivery personnel to receive dispatch requests, view live routes, and update order statuses in real-time.
 
-1. Install dependencies
+---
 
-   ```bash
-   npm install
-   ```
+## ✨ Key Features
 
-2. Start the app
+- **🔴 Live Dispatch & Real-Time Tracking:** Integrated with `socket.io-client` to receive instant order dispatches and emit live GPS coordinates back to the customer and vendor.
+- **🗺️ Geospatial Navigation:** Leverages `expo-location` and `react-native-maps` to display delivery routes, estimate arrival times, and calculate distance-based earnings.
+- **🔔 Instant Notifications:** Uses `expo-notifications` to alert riders of new order requests even when the app is in the background.
+- **📱 Hardware Integrations:** Utilizes haptic feedback (`expo-haptics`), device clipboard (`expo-clipboard`), and camera/gallery (`expo-image-picker`) for a deeply integrated native experience.
+- **🔒 Secure Storage:** Employs `expo-secure-store` to keep JWT tokens and rider credentials safely encrypted on-device.
 
-   ```bash
-   npx expo start
-   ```
+---
 
-In the output, you'll find options to open the app in a
+## 🛠️ Tech Stack
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+| Category | Technology |
+|---|---|
+| Framework | React Native & Expo (v54) |
+| Navigation | Expo Router (`expo-router` v6) |
+| Local State | Zustand |
+| Server State | TanStack React Query |
+| Mapping | React Native Maps & Expo Location |
+| Real-time | Socket.io Client |
+| Validation | Zod |
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+---
 
-## Get a fresh project
+## 🚀 Getting Started
 
-When you're ready, run:
+### Prerequisites
+
+| Requirement | Version |
+|---|---|
+| Node.js | v20+ |
+| Expo CLI | Latest (`npm install -g expo-cli`) |
+| Device | Expo Go app on physical device **or** iOS Simulator / Android Emulator |
+
+---
+
+### 1. Clone & Install
 
 ```bash
-npm run reset-project
+git clone https://github.com/your-org/rider-app.git
+cd rider-app
+npm install
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+### 2. Environment Setup
 
-## Learn more
+Create a `.env` file in the root directory:
 
-To learn more about developing your project with Expo, look at the following resources:
+```env
+EXPO_PUBLIC_API_URL=http://your-local-ip:4000/api
+EXPO_PUBLIC_SOCKET_URL=http://your-local-ip:4000
+EXPO_PUBLIC_GOOGLE_MAPS_API_KEY=your_maps_key
+```
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+> ⚠️ **Note:** For local development on physical devices, use your machine's local IP address instead of `localhost`.
 
-## Join the community
+### 3. Start the Development Server
 
-Join our community of developers creating universal apps.
+```bash
+npx expo start
+```
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+### 4. Run on a Device or Emulator
+
+| Platform | Action |
+|---|---|
+| Physical Device | Scan the QR code with the **Expo Go** app |
+| iOS Simulator | Press `i` in the terminal |
+| Android Emulator | Press `a` in the terminal |
+
+---
+
+## 📦 Build & Deployment
+
+This project is configured for **EAS (Expo Application Services)**.
+
+To build the `APK`/`AAB` for Android or `IPA` for iOS:
+
+```bash
+eas build --platform all
+```
+
+---
+
+<div align="center">
+  Built with ❤️ for the <strong>ChowEazy</strong> Ecosystem
+</div>
