@@ -40,7 +40,7 @@ export default function DashboardScreen() {
   // --- QUERIES & MUTATIONS ---
   const { data: activeOrder, refetch: refetchActive } = useGetActiveOrder();
   
-  const {
+  const { 
     data: availableOrders,
     isLoading: loadingNew,
     refetch: refetchNew,
