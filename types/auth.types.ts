@@ -1,25 +1,26 @@
 
 //-----------DATA OR REQUEST SENT TO THE BACKEND (REQUEST PAYLOADS)-----------//
 
-// import { Restaurant } from "./restaurant.types";
+import { Restaurant } from "./restaurant.types";
 
 export interface RegisterData {
   name: string;
   email: string;
   password: string;
-  phone: string; // Phone is usually mandatory for vendors
-  role: "VENDOR"; // Strict typing for this app
-  terms: boolean
+  phone: string;
+  address: string;          
+  role: "DISPATCHER" | "RIDER" | "VENDOR"; 
+  terms: boolean;
 }
 
 export interface LoginData {
   email: string;
   password: string;
-  clientType?: "web" | "mobile"; // <--- ADDED 
+  clientType?: "web" | "mobile";
 }
 
 export interface VerifyOtpPayload {
-  token: string;
+  email:string
   code: string;
   clientType?: "web" | "mobile"; // <--- ADDED
 }
@@ -48,14 +49,15 @@ export interface User {
   email: string;
   role: string;
   phone?: string;
-//   restaurant?: Restaurant | null; 
+  isVerified: boolean
+  restaurant?: Restaurant | null; 
+  isOnline: boolean
 }
 
 
 export interface VerifyOtpResponse {
+  success: boolean
   message: string;
-  user:AuthResponse['user']
-  token: string; // Final auth token
 }
 
 
@@ -79,3 +81,4 @@ export interface ResetPasswordPayload {
 export interface ResetPasswordResponse {
   message: string;
 }
+

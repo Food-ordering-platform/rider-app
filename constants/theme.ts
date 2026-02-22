@@ -60,7 +60,7 @@ export const THEME = {
 
 // 3. Backward Compatibility (The Safety Net)
 // This ensures 'import { COLORS } from ...' still works!
-export const COLORS = THEME.light;
+// export const COLORS = THEME.light;
 
 export const SHADOWS = {
   small: {
@@ -85,4 +85,19 @@ export const SPACING = {
   m: 16,
   l: 24,
   xl: 32,
+};
+
+// --- THEME COLORS ---
+export const COLORS = {
+  primary: "#7B1E3A",       
+  primaryLight: "#7B1E3A15", 
+  secondary: "#1F2937",     
+  background: "#F9FAFB",    
+  card: "#FFFFFF",
+  success: "#10B981",
+  warning: "#F59E0B",
+  danger: "#EF4444",
+  text: "#111827",
+  textLight: "#6B7280",
+  border: "#E5E7EB"
 };

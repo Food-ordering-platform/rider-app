@@ -1,3 +1,4 @@
+import { tokenStorage } from "@/utils/storage";
 import axios from "axios";
 import * as SecureStore from "expo-secure-store";
 
@@ -23,7 +24,7 @@ api.interceptors.request.use(
     console.log(`🚀 Requesting: ${config.baseURL}${config.url}`);
     
     // Ensure this key matches what AuthContext uses
-    const token = await SecureStore.getItemAsync("auth_token");
+    const token = await tokenStorage.getItem("auth_token");
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }

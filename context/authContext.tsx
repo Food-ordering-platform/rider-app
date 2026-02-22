@@ -1,15 +1,14 @@
-// food-ordering-platform/vendor-app/vendor-app-work-branch/context/authContext.tsx
+// food-ordering-platform/rider-app/rider-app-work-branch/context/authContext.tsx
 
-import React, { createContext, useContext, ReactNode } from 'react';
-import * as SecureStore from 'expo-secure-store'; 
+import React, { createContext, useContext, ReactNode, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { LoginData, RegisterData, User, AuthResponse } from '../types/auth.types';
 import { useCurrentUser, useLogin, useRegister } from '../services/auth/auth.queries';
+import { tokenStorage } from '../utils/storage'; // 🟢 Import your new storage helper
 
-// 1. Update the Interface
 interface AuthContextType {
   user: User | null;
-  isAuthenticated: boolean; // <--- ADD THIS
+  isAuthenticated: boolean; // 🟢 Added
   isLoading: boolean;
   login: (data: LoginData) => Promise<AuthResponse>;
   register: (data: RegisterData) => Promise<AuthResponse>;
@@ -22,7 +21,10 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const queryClient = useQueryClient();
 
+  // "useCurrentUser" likely fetches /auth/me. 
+  // Ensure your axios interceptor is using tokenStorage too (see below).
   const { data: user, isLoading: isUserLoading, refetch } = useCurrentUser();
+  
   const loginMutation = useLogin();
   const registerMutation = useRegister();
 
@@ -34,13 +36,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const res = await loginMutation.mutateAsync(data);
       
+      // If backend requires OTP, we don't save token yet
       if (res.requireOtp) {
         return res; 
       }
 
+      // If we got a token, save it using the WEB-SAFE storage
       if (res.token) {
-        await SecureStore.setItemAsync('auth_token', res.token);
-        await refetch(); 
+        await tokenStorage.setItem('auth_token', res.token); // 🟢 Uses tokenStorage
+        await refetch(); // Fetch user profile immediately
       }
       return res;
     } catch (error: any) {
@@ -51,6 +55,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const register = async (data: RegisterData): Promise<AuthResponse> => {
     try {
       const res = await registerMutation.mutateAsync(data);
+      // If registration returns a token immediately:
+      if (res.token) {
+        await tokenStorage.setItem('auth_token', res.token);
+        await refetch();
+      }
       return res;
     } catch (error: any) {
       throw error;
@@ -58,19 +67,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const logout = async () => {
-    await SecureStore.deleteItemAsync('auth_token');
+    await tokenStorage.removeItem('auth_token'); // 🟢 Uses tokenStorage
     queryClient.setQueryData(['currentUser'], null);
     queryClient.removeQueries({ queryKey: ['currentUser'] });
   };
 
-  // 2. Calculate isAuthenticated
+  // 🟢 Derived State
   const isAuthenticated = !!user; 
 
   return (
     <AuthContext.Provider 
       value={{ 
         user: user || null, 
-        isAuthenticated, // <--- PASS THIS VALUE
+        isAuthenticated, 
         isLoading: isUserLoading, 
         login, 
         register, 
