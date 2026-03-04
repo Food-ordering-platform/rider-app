@@ -88,9 +88,9 @@ export const riderService = {
   /**
    * Requests a payout from the wallet.
    */
-  requestPayout: async (payload: PayoutRequest): Promise<any> => {
+  requestPayout: async (data: { amount: number; bankDetails: any }): Promise<any> => {
     // Payload should be: { amount: 1000, bankCode: "058", accountNumber: "1234567890" }
-    const response = await api.post("/rider/payout", payload);
+    const response = await api.post("/rider/payout", data);
     return response.data;
   },
 
@@ -113,5 +113,10 @@ export const riderService = {
   updateStatus: async (isOnline: boolean): Promise<any> => {
     const response = await api.patch("/rider/status", { isOnline });
     return response.data.data;
+  },
+
+   getTransactions: async () => {
+    const response = await api.get(`/rider/transactions`) ;
+    return response.data;
   },
 };

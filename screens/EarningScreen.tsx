@@ -8,7 +8,8 @@ import { useTheme } from "../context/themeContext";
 import { 
   useGetRiderEarnings, 
   useRequestPayout, 
-  useGetBanks 
+  useGetBanks, 
+  useRiderTransactions
 } from "../services/rider/rider.queries";
 import { COLORS, SHADOWS } from "../constants/theme";
 import { MaterialCommunityIcons, Ionicons, FontAwesome5 } from "@expo/vector-icons";
@@ -24,6 +25,7 @@ export default function EarningScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [amount, setAmount] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
+  const [accountName, setAccountName] = useState("");
   const [selectedBank, setSelectedBank] = useState<Bank | null>(null);
   const [showBankList, setShowBankList] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -32,6 +34,7 @@ export default function EarningScreen() {
 
   // --- DATA ---
   const { data: earnings, refetch: refetchEarnings } = useGetRiderEarnings();
+  const { data: transactions, refetch: refetchTnx  } = useRiderTransactions();
   const { data: banks = [], refetch: refetchBanks } = useGetBanks();
   const { mutate: requestPayout, isPending } = useRequestPayout();
 
@@ -39,7 +42,7 @@ export default function EarningScreen() {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     // Refetch both earnings and bank list
-    await Promise.all([refetchEarnings(), refetchBanks()]);
+    await Promise.all([refetchEarnings(), refetchBanks(), refetchTnx()]);
     setRefreshing(false);
   }, [refetchEarnings, refetchBanks]);
 
@@ -59,7 +62,7 @@ export default function EarningScreen() {
   // --- HANDLERS ---
   const handleWithdraw = () => {
     setFormError(null);
-    if(!amount || !accountNumber || !selectedBank) {
+    if(!amount || !accountNumber || !selectedBank || !accountName) {
       setFormError("Please fill all fields.");
       return;
     }
@@ -77,19 +80,26 @@ export default function EarningScreen() {
     }
     
     requestPayout({
-      amount: withdrawAmount,
-      bankCode: selectedBank.code,
-      accountNumber: accountNumber
-    }, {
-      onSuccess: () => {
-        setModalVisible(false);
-        setAmount("");
-        setFormError(null);
-      },
-      onError: (err: any) => {
-        setFormError(err.response?.data?.message || "Payout failed");
-      }
-    });
+    amount: withdrawAmount,
+    bankDetails: {
+      accountNumber: accountNumber,
+      accountName: accountName,
+      bankName: selectedBank.name, // Sending name for description
+      bankCode: selectedBank.code, // Sending code for possible automation
+    }
+  }, {
+    onSuccess: () => {
+      setModalVisible(false);
+      setAmount("");
+      setAccountNumber("");
+      setAccountName("");
+      setSelectedBank(null);
+      setFormError(null);
+    },
+    onError: (err: any) => {
+      setFormError(err.response?.data?.message || "Payout failed");
+    }
+  });
   };
 
  const renderTransaction = ({ item }: any) => {
@@ -117,9 +127,6 @@ export default function EarningScreen() {
         </View>
         <View style={{ flex: 1, paddingHorizontal: 12 }}>
           <Text style={[styles.txnTitle, { color: colors.text }]}>{item.description}</Text>
-          <Text style={styles.txnDate}>
-            {format(new Date(item.date), 'MMM d, h:mm a')} • {item.status}
-          </Text>
         </View>
         <Text style={[styles.txnAmount, { color: iconColor }]}>
           {isCredit ? '+' : '-'}₦{item.amount.toLocaleString()}
@@ -197,7 +204,7 @@ export default function EarningScreen() {
         {/* --- 3. TRANSACTION HISTORY --- */}
         <Text style={styles.sectionHeader}>Recent Activity</Text>
         <FlatList 
-            data={earnings?.transactions || []}
+            data={transactions}
             keyExtractor={item => item.id}
             renderItem={renderTransaction}
             scrollEnabled={false} // Let parent ScrollView handle it
@@ -277,6 +284,15 @@ export default function EarningScreen() {
               maxLength={10}
               value={accountNumber}
               onChangeText={setAccountNumber}
+            />
+            {/* 🟢 Added Account Name Input */}
+            <Text style={styles.inputLabel}>Account Name</Text>
+            <TextInput 
+              style={styles.input} 
+              placeholder="e.g. John Doe"
+              value={accountName}
+              onChangeText={setAccountName}
+              autoCapitalize="words"
             />
             
             <TouchableOpacity 

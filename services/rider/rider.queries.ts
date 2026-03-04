@@ -107,26 +107,42 @@ export const useRequestPayout = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    // 🟢 FIX: Accept the full object here
-    mutationFn: (data: { amount: number; bankCode: string; accountNumber: string }) => 
-      riderService.requestPayout(data),
+    // 🟢 1. Define the input type to match your new nested structure
+    mutationFn: (data: { 
+      amount: number; 
+      bankDetails: { 
+        bankCode: string; 
+        accountNumber: string; 
+        accountName: string;
+        bankName: string; 
+      } 
+    }) => riderService.requestPayout(data),
       
     onSuccess: () => {
+      // 🟢 2. Show the toast
       Toast.show({
         type: "success",
-        text1: "Payout processed successfully",
+        text1: "Payout Requested! 💸",
+        text2: "Admin will process your transfer shortly."
       });
+
+      // 🟢 3. Invalidate ALL relevant queries
+      // This ensures the balance drops and the transaction list updates
       queryClient.invalidateQueries({ queryKey: ["rider-earnings"] });
+      queryClient.invalidateQueries({ queryKey: ["RiderTransactions"] });
     },
+    
     onError: (error: any) => {
+      const errorMessage = error.response?.data?.message || "Something went wrong";
+      
       Toast.show({
         type: "error",
-        text1: "Payout failed",
-        text2: error.response?.data?.message || "Something went wrong",
+        text1: "Payout Failed",
+        text2: errorMessage,
       });
     },
   });
-}
+};
 
 export const useGetHistory = () => {
   return useQuery({
@@ -135,7 +151,6 @@ export const useGetHistory = () => {
   });
 };
 
-// services/rider/rider.queries.ts
 
 export const useUpdateStatus = () => {
   const queryClient = useQueryClient();
@@ -159,5 +174,13 @@ export const useUpdateStatus = () => {
         text2: err.response?.data?.message,
       });
     },
+  });
+};
+
+export const useRiderTransactions = () => {
+  return useQuery({
+    queryKey: ['RiderTransactions'],
+    queryFn: () => riderService.getTransactions(),
+    select: (data) => data.data
   });
 };
