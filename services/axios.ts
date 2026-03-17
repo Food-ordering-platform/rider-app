@@ -1,6 +1,5 @@
-import { tokenStorage } from "@/utils/storage";
+import { tokenStorage } from "../utils/storage"; // Adjust path if needed
 import axios from "axios";
-import * as SecureStore from "expo-secure-store";
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL;
 
@@ -10,21 +9,16 @@ if (!BASE_URL) {
 
 const api = axios.create({
   baseURL: BASE_URL,
-  headers: {
-    "Accept": "application/json",
-  },
   timeout: 60000, // 60 seconds (Good for slow image uploads)
 });
 
-// Add Token to requests
-// services/axios.ts
-// Add Token to requests
+// 🟢 Request Interceptor: Attach the Access Token
 api.interceptors.request.use(
   async (config) => {
-    console.log(`🚀 Requesting: ${config.baseURL}${config.url}`);
+    // console.log(`🚀 Requesting: ${config.baseURL}${config.url}`);
     
-    // Ensure this key matches what AuthContext uses
-    const token = await tokenStorage.getItem("auth_token");
+    // Switch to access_token
+    const token = await tokenStorage.getItem("access_token");
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -33,10 +27,49 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Handle Responses & Errors
+// 🟢 Response Interceptor: The Silent Refresher
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
+    const originalRequest = error.config;
+
+    // Catch 401 Unauthorized and ensure we haven't already retried this request
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+
+      try {
+        const refreshToken = await tokenStorage.getItem("refresh_token");
+        
+        if (!refreshToken) {
+          throw new Error("No refresh token available");
+        }
+
+        // 🚀 CRITICAL: Use global axios here, NOT our 'api' instance
+        // Pass the refreshToken in the body exactly as your backend expects it
+        const res = await axios.post(`${BASE_URL}/auth/refresh`, {
+          refreshToken: refreshToken
+        });
+
+        const newAccessToken = res.data.accessToken;
+
+        // Save the brand new Access Token
+        await tokenStorage.setItem("access_token", newAccessToken);
+
+        // Update the failed request's header and fire it again
+        originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+        return api(originalRequest);
+
+      } catch (refreshError) {
+        console.error("❌ Session completely expired. Logging out rider.");
+        // Nuke both tokens so the app forces them back to the login screen
+        await tokenStorage.removeItem("access_token");
+        await tokenStorage.removeItem("refresh_token");
+        
+        return Promise.reject({ message: "Session expired. Please log in again.", status: 401 });
+      }
+    }
+
+    // Standard Error Handling Fallback
     if (error.response) {
       console.error("❌ API Error:", error.response.status, error.response.data);
       const message = error.response.data.message || error.response.data.error || "Something went wrong";
