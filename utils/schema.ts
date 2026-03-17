@@ -14,6 +14,9 @@ export const signupSchema = z.object({
   phone: z.string().regex(/^[0-9]{10,11}$/, { message: "Phone number must be 10 or 11 digits" }),
   address: z.string().min(5, { message: "Address is too short" }),
   password: z.string().min(6, { message: "Password must be at least 6 characters" }),
+ terms: z.boolean().refine(val => val === true, {
+  message: "You must agree to the terms",
+}),
 });
 
 // --- WALLET SCHEMAS ---

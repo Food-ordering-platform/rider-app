@@ -17,6 +17,7 @@ import { COLORS } from "../constants/theme";
 import { useAuth } from "../context/authContext";
 import { useNavigation } from "@react-navigation/native";
 import { signupSchema, SignupFormData } from "../utils/schema";
+import { toast } from '../components/ui/Toast';
 
 export default function SignupScreen() {
   const { register } = useAuth();
@@ -28,6 +29,7 @@ export default function SignupScreen() {
     phone: "",
     address: "",
     password: "",
+    terms:false
   });
 
   const [errors, setErrors] = useState<
@@ -41,6 +43,11 @@ export default function SignupScreen() {
       setErrors((prev) => ({ ...prev, [field]: undefined }));
     }
   };
+
+   if (!formData.terms) {
+      Alert.alert("Terms Required", "Please accept the terms and conditions.");
+      return;
+    }
 
   const handleRegister = async () => {
     const result = signupSchema.safeParse(formData);
@@ -61,15 +68,14 @@ export default function SignupScreen() {
       const response = await register({
         ...result.data,
         role: "RIDER",
-        terms: true,
       });
 
-      Alert.alert("Success", "Account created! Please Verify OTP.");
+      toast.success("Success! Account created! Please Verify OTP.");
       navigation.navigate("OtpVerification", {
         email: result.data.email,
       });
     } catch (error: any) {
-      Alert.alert(
+      toast.error(
         "Registration Failed",
         error?.response?.data?.message || "Could not create account"
       );
@@ -172,6 +178,21 @@ export default function SignupScreen() {
               <Text style={styles.errorText}>{errors.password || " "}</Text>
             </View>
 
+             {/* Terms and Conditions */}
+            <View style={styles.termsContainer}>
+              <TouchableOpacity 
+                onPress={() => setFormData({...formData, terms: !formData.terms})}
+                style={styles.checkboxRow}
+              >
+                <Ionicons 
+                  name={formData.terms ? "checkbox" : "checkbox-outline"} 
+                  size={20} 
+                  color={COLORS.primary || '#000'} 
+                />
+                <Text style={styles.termsText}>I agree to the Terms and Conditions</Text>
+              </TouchableOpacity>
+            </View>
+
             <TouchableOpacity
               style={styles.registerBtn}
               onPress={handleRegister}
@@ -259,4 +280,17 @@ const styles = StyleSheet.create({
   footer: { flexDirection: "row", justifyContent: "center", marginTop: 30 },
   footerText: { color: "#6B7280" },
   linkText: { color: COLORS.primary, fontWeight: "700" },
+  termsContainer: {
+    marginBottom: 16,
+  },
+  checkboxRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  termsText: {
+    fontSize: 14,
+    color: '#333',
+    marginLeft: 10,
+    flex: 1,
+  },
 });
