@@ -16,14 +16,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { COLORS } from "../constants/theme";
 import { useAuth } from "../context/authContext";
 import { useNavigation } from "@react-navigation/native";
-// 1. Import your schema and type
 import { signupSchema, SignupFormData } from "../utils/schema";
 
 export default function SignupScreen() {
   const { register } = useAuth();
   const navigation = useNavigation<any>();
 
-  // 2. Use the inferred Type for your state
   const [formData, setFormData] = useState<SignupFormData>({
     name: "",
     email: "",
@@ -32,27 +30,22 @@ export default function SignupScreen() {
     password: "",
   });
 
-  // 3. Create a state to hold validation errors
   const [errors, setErrors] = useState<
     Partial<Record<keyof SignupFormData, string>>
   >({});
   const [loading, setLoading] = useState(false);
 
-  // Helper to update field and clear error simultaneously
   const handleChange = (field: keyof SignupFormData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
-    // Clear the error for this field if the user starts typing again
     if (errors[field]) {
       setErrors((prev) => ({ ...prev, [field]: undefined }));
     }
   };
 
   const handleRegister = async () => {
-    // 4. Run Zod Validation
     const result = signupSchema.safeParse(formData);
 
     if (!result.success) {
-      // Map Zod errors to our state object
       const formattedErrors: any = {};
       result.error.issues.forEach((err: any) => {
         if (err.path[0]) {
@@ -60,14 +53,11 @@ export default function SignupScreen() {
         }
       });
       setErrors(formattedErrors);
-      // Optional: Shake animation or vibration here
       return;
     }
 
-    // Validation Passed
     setLoading(true);
     try {
-      // 5. Use 'result.data' which is the sanitized, typed data
       const response = await register({
         ...result.data,
         role: "RIDER",
@@ -90,13 +80,15 @@ export default function SignupScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* 🟢 FIX 1: Android twitches with behavior="height". Use undefined for Android. */}
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={{ flex: 1 }}
       >
         <ScrollView
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled" // 🟢 FIX 2: Prevents keyboard jumping when tapping buttons
         >
           {/* HEADER */}
           <TouchableOpacity
@@ -115,7 +107,7 @@ export default function SignupScreen() {
 
           {/* FORM */}
           <View style={styles.form}>
-            {/* COMPANY NAME */}
+            {/* NAME */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Name</Text>
               <TextInput
@@ -124,9 +116,8 @@ export default function SignupScreen() {
                 value={formData.name}
                 onChangeText={(text) => handleChange("name", text)}
               />
-              {errors.name && (
-                <Text style={styles.errorText}>{errors.name}</Text>
-              )}
+              {/* 🟢 FIX 3: Always render the Text node with a blank space if no error exists */}
+              <Text style={styles.errorText}>{errors.name || " "}</Text>
             </View>
 
             {/* EMAIL */}
@@ -140,9 +131,7 @@ export default function SignupScreen() {
                 keyboardType="email-address"
                 autoCapitalize="none"
               />
-              {errors.email && (
-                <Text style={styles.errorText}>{errors.email}</Text>
-              )}
+              <Text style={styles.errorText}>{errors.email || " "}</Text>
             </View>
 
             {/* PHONE */}
@@ -155,9 +144,7 @@ export default function SignupScreen() {
                 onChangeText={(text) => handleChange("phone", text)}
                 keyboardType="phone-pad"
               />
-              {errors.phone && (
-                <Text style={styles.errorText}>{errors.phone}</Text>
-              )}
+              <Text style={styles.errorText}>{errors.phone || " "}</Text>
             </View>
 
             {/* ADDRESS */}
@@ -169,9 +156,7 @@ export default function SignupScreen() {
                 value={formData.address}
                 onChangeText={(text) => handleChange("address", text)}
               />
-              {errors.address && (
-                <Text style={styles.errorText}>{errors.address}</Text>
-              )}
+              <Text style={styles.errorText}>{errors.address || " "}</Text>
             </View>
 
             {/* PASSWORD */}
@@ -184,9 +169,7 @@ export default function SignupScreen() {
                 onChangeText={(text) => handleChange("password", text)}
                 secureTextEntry
               />
-              {errors.password && (
-                <Text style={styles.errorText}>{errors.password}</Text>
-              )}
+              <Text style={styles.errorText}>{errors.password || " "}</Text>
             </View>
 
             <TouchableOpacity
@@ -224,8 +207,8 @@ const styles = StyleSheet.create({
   title: { fontSize: 28, fontWeight: "800", color: COLORS.primary },
   subtitle: { fontSize: 16, color: "#6B7280", marginTop: 5 },
 
-  form: { gap: 15 },
-  inputGroup: { marginBottom: 5 },
+  form: { marginTop: 10 },
+  inputGroup: { marginBottom: 0 },
   label: {
     fontSize: 12,
     fontWeight: "700",
@@ -246,14 +229,17 @@ const styles = StyleSheet.create({
     borderColor: "#EF4444",
     borderWidth: 1.5,
     backgroundColor: "#FEF2F2",
-  }, // Red border for error
+  },
 
+  // 🟢 The text always renders with a minimum height, so the layout never jumps!
   errorText: {
     color: "#EF4444",
     fontSize: 12,
-    marginTop: 4,
     fontWeight: "500",
-  }, // Error message style
+    marginTop: 4,
+    minHeight: 18, 
+    marginBottom: 5,
+  },
 
   registerBtn: {
     height: 56,
@@ -261,7 +247,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 20,
+    marginTop: 5,
     shadowColor: COLORS.primary,
     shadowOpacity: 0.3,
     shadowOffset: { width: 0, height: 5 },

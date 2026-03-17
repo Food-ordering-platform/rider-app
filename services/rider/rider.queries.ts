@@ -1,7 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { riderService } from "./rider.services";
-import Toast from "react-native-toast-message";
-
+import { toast } from "../../components/ui/Toast";
 
 // --- Queries ---
 export const useGetAvailableOrders = () => {
@@ -33,21 +32,12 @@ export const useAcceptOrder = () => {
   return useMutation({
     mutationFn: (orderId: string) => riderService.acceptOrder(orderId),
     onSuccess: () => {
-      Toast.show({
-        type: "success",
-        text1: "Order Accepted!",
-        text2: "You are now assigned.",
-      });
+      toast.success("Order Accepted! You are now assigned.");
       // Invalidate both lists so the UI updates instantly
       queryClient.invalidateQueries({ queryKey: ["rider-available-orders"] });
       queryClient.invalidateQueries({ queryKey: ["rider-active-order"] });
     },
-    onError: (err: any) =>
-      Toast.show({
-        type: "error",
-        text1: "Error",
-        text2: err.response?.data?.message,
-      }),
+    onError: (err: any) => toast.error("Failed to acccept order", err.response?.data?.message),
   });
 };
 
@@ -56,19 +46,10 @@ export const useConfirmPickup = () => {
   return useMutation({
     mutationFn: (orderId: string) => riderService.confirmPickup(orderId),
     onSuccess: () => {
-      Toast.show({
-        type: "success",
-        text1: "Pickup Confirmed",
-        text2: "Start heading to the customer.",
-      });
+      toast.success("Success, Pick up confirmed! Start heading to customer!!");
       queryClient.invalidateQueries({ queryKey: ["rider-active-order"] });
     },
-    onError: (err: any) =>
-      Toast.show({
-        type: "error",
-        text1: "Error",
-        text2: err.response?.data?.message,
-      }),
+    onError: (err: any) => toast.error("Pickup Failed", err.response?.data?.message),
   });
 };
 
@@ -78,20 +59,11 @@ export const useConfirmDelivery = () => {
     mutationFn: ({ orderId, code }: { orderId: string; code: string }) =>
       riderService.confirmDelivery(orderId, code),
     onSuccess: () => {
-      Toast.show({
-        type: "success",
-        text1: "Delivery Complete!",
-        text2: "Earnings credited to wallet.",
-      });
+      toast.success("Success, Delivery completed! Earnings credited to wallet");
       queryClient.invalidateQueries({ queryKey: ["rider-active-order"] }); // Will become null
       queryClient.invalidateQueries({ queryKey: ["rider-earnings"] }); // Update balance
     },
-    onError: (err: any) =>
-      Toast.show({
-        type: "error",
-        text1: "Failed",
-        text2: err.response?.data?.message || "Invalid Code",
-      }),
+    onError: (err: any) => toast.error("Delivery failed",err.response?.data?.message),
   });
 };
 
@@ -108,38 +80,33 @@ export const useRequestPayout = () => {
 
   return useMutation({
     // 🟢 1. Define the input type to match your new nested structure
-    mutationFn: (data: { 
-      amount: number; 
-      bankDetails: { 
-        bankCode: string; 
-        accountNumber: string; 
+    mutationFn: (data: {
+      amount: number;
+      bankDetails: {
+        bankCode: string;
+        accountNumber: string;
         accountName: string;
-        bankName: string; 
-      } 
+        bankName: string;
+      };
     }) => riderService.requestPayout(data),
-      
+
     onSuccess: () => {
       // 🟢 2. Show the toast
-      Toast.show({
-        type: "success",
-        text1: "Payout Requested! 💸",
-        text2: "Admin will process your transfer shortly."
-      });
+      toast.success(
+        "success, Payout Requested, Admin will process your transfer",
+      );
 
       // 🟢 3. Invalidate ALL relevant queries
       // This ensures the balance drops and the transaction list updates
       queryClient.invalidateQueries({ queryKey: ["rider-earnings"] });
       queryClient.invalidateQueries({ queryKey: ["RiderTransactions"] });
     },
-    
+
     onError: (error: any) => {
-      const errorMessage = error.response?.data?.message || "Something went wrong";
-      
-      Toast.show({
-        type: "error",
-        text1: "Payout Failed",
-        text2: errorMessage,
-      });
+      const errorMessage =
+        error.response?.data?.message || "Something went wrong";
+
+      toast.error("Payout failed", error.response?.data?.message);
     },
   });
 };
@@ -151,36 +118,31 @@ export const useGetHistory = () => {
   });
 };
 
-
 export const useUpdateStatus = () => {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: (isOnline: boolean) => riderService.updateStatus(isOnline),
     onSuccess: (data) => {
       // 1. Refresh the authenticated user profile so isOnline stays in sync
       queryClient.invalidateQueries({ queryKey: ["currentUser"] });
-      
-      Toast.show({
-        type: "success",
-        text1: data.isOnline ? "You are Online 🟢" : "You are Offline 🔴",
-        text2: data.isOnline ? "Ready to receive orders" : "You won't receive orders",
+      const isOnline = data.isOnline;
+      toast.success(isOnline ? "You're Online 🟢" : "You're Offline 🔴", {
+        description: isOnline
+          ? "Ready to receive orders"
+          : "You won't receive new orders",
       });
     },
     onError: (err: any) => {
-      Toast.show({
-        type: "error",
-        text1: "Failed to update status",
-        text2: err.response?.data?.message,
-      });
+      toast.error("Error", err.response?.data?.message);
     },
   });
 };
 
 export const useRiderTransactions = () => {
   return useQuery({
-    queryKey: ['RiderTransactions'],
+    queryKey: ["RiderTransactions"],
     queryFn: () => riderService.getTransactions(),
-    select: (data) => data.data
+    select: (data) => data.data,
   });
 };

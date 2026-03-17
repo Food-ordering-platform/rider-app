@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Image, Platform, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Platform,  View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
@@ -15,7 +15,9 @@ import { tokenStorage } from "./utils/storage";
 import { COLORS } from "./constants/theme";
 import { PWAInstallBanner } from "./components/PWAInstallBanner";
 
+
 // Screens
+import SplashScreen from "./screens/SplashScreen"; //  Added Splash Screen
 import OnboardingScreen from "./screens/OnboardingScreen";
 import LoginScreen from "./screens/LoginScreen";
 import SignupScreen from "./screens/SignupScreen";
@@ -34,20 +36,7 @@ const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 const queryClient = new QueryClient();
 
-// --- 1. LOADING SCREEN ---
-function LoadingScreen() {
-  return (
-    <View style={styles.loadingContainer}>
-      <Image
-        source={require("./assets/rider_logo.png")}
-        style={styles.loadingLogo}
-      />
-      <ActivityIndicator size="large" color={COLORS.primary} />
-    </View>
-  );
-}
-
-// --- 2. BOTTOM TABS ---
+// --- 1. BOTTOM TABS ---
 function DispatcherTabs() {
   const insets = useSafeAreaInsets();
 
@@ -62,16 +51,14 @@ function DispatcherTabs() {
           borderTopWidth: 0,
           elevation: 10,
           shadowOpacity: 0.1,
-          // 🔴 FIX: Removed fixed 'height' which caused twitching when padding was added
-          // height: Platform.select({ ios: 80, android: 70, default: 60 }), 
-          minHeight: Platform.select({ ios: 85, android: 70, default: 60 }), // Allow growth
+          minHeight: Platform.select({ ios: 85, android: 70, default: 60 }), 
           paddingBottom: insets.bottom + 10,
           paddingTop: 10,
         },
         tabBarLabelStyle: {
           fontSize: 12,
           fontWeight: "600",
-          marginBottom: Platform.OS === 'android' ? 10 : 0, // Add spacing for Android
+          marginBottom: Platform.OS === 'android' ? 10 : 0, 
         },
       }}
     >
@@ -116,28 +103,33 @@ function DispatcherTabs() {
   );
 }
 
-// --- 3. MAIN NAVIGATION ---
+// --- 2. MAIN NAVIGATION ---
 const NavigationContent = React.memo(function NavigationContent() {
   const { isAuthenticated, isLoading, user } = useAuth();
   usePushNotification(); 
-  const [hasSeenOnboarding, setHasSeenOnboarding] = useState<boolean | null>(null);
+  
+  // 🟢 State to track if this is a fresh install
+  const [isFirstLaunch, setIsFirstLaunch] = useState<boolean | null>(null);
 
   useEffect(() => {
-    // 🟢 UNCOMMENT THIS LINE BELOW ONCE TO RESET ONBOARDING, THEN RE-COMMENT IT
-    // tokenStorage.removeItem('hasSeenOnboarding');
-
+    // Check if user has seen onboarding
     tokenStorage.getItem('hasSeenOnboarding').then(val => {
-        setHasSeenOnboarding(!!val);
+        // If val is null/undefined, it IS their first launch
+        setIsFirstLaunch(!val);
     });
   }, []);
 
-  if (isLoading || hasSeenOnboarding === null) {
-    return <LoadingScreen />;
+  // Show a blank view while securely fetching from tokenStorage
+  if (isLoading || isFirstLaunch === null) {
+    return (
+      <View style={{ flex: 1, backgroundColor: "#fff", justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+      </View>
+    );
   }
 
   return (
     <NavigationContainer>
-      {/* 🔴 FIX: Removed StatusBar from here to prevent re-render twitching */}
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {isAuthenticated ? (
           // --- AUTHENTICATED FLOW ---
@@ -154,9 +146,18 @@ const NavigationContent = React.memo(function NavigationContent() {
         ) : (
           // --- UNAUTHENTICATED FLOW ---
           <>
-            {!hasSeenOnboarding && (
+            {/* 🟢 1. Inject Splash Screen and pass the flag */}
+            <Stack.Screen 
+              name="Splash" 
+              component={SplashScreen} 
+              initialParams={{ isFirstLaunch }} 
+            />
+            
+            {/* 🟢 2. Only mount Onboarding if it is actually their first launch */}
+            {isFirstLaunch && (
                <Stack.Screen name="Onboarding" component={OnboardingScreen} />
             )}
+            
             <Stack.Screen name="Login" component={LoginScreen} />
             <Stack.Screen name="SignUp" component={SignupScreen} />
             <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
@@ -170,12 +171,9 @@ const NavigationContent = React.memo(function NavigationContent() {
 });
 
 export default function App() {
-  
-
   return (
     <QueryClientProvider client={queryClient}>
       <SafeAreaProvider>
-        {/* 🟢 FIX: Moved StatusBar here for stability */}
         <StatusBar style="dark" backgroundColor="transparent" translucent />
         <AuthProvider>
             <NavigationContent />
@@ -185,18 +183,3 @@ export default function App() {
     </QueryClientProvider>
   );
 }
-
-const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    backgroundColor: "#fff",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  loadingLogo: {
-    width: 100,
-    height: 100,
-    marginBottom: 20,
-    resizeMode: "contain",
-  }
-});

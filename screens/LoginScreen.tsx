@@ -69,7 +69,7 @@ export default function LoginScreen({ navigation } : any) {
             </View>
             <Text style={[styles.appName]}>Choweazy</Text>
             {/* 🟢 Replaced "Dispatcher Portal" with "Delivery Partner" */}
-            <Text style={styles.roleLabel}>Delivery Partner</Text>
+            <Text style={styles.roleLabel}>Delivery Rider</Text>
           </View>
 
           {/* FORM AREA */}
@@ -80,7 +80,7 @@ export default function LoginScreen({ navigation } : any) {
               <Text style={styles.label}>Email Address</Text>
               <TextInput 
                 style={[styles.input, errors.email && styles.inputError]} 
-                placeholder="partner@choweazy.com"
+                placeholder="rider@choweazy.com"
                 placeholderTextColor="#9CA3AF"
                 value={email}
                 onChangeText={(text) => {
@@ -136,7 +136,7 @@ export default function LoginScreen({ navigation } : any) {
           <View style={styles.footer}>
             <Text style={styles.footerText}>New rider? </Text>
             <TouchableOpacity onPress={() => navigation.navigate('SignUp')}>
-               <Text style={styles.linkText}>Become a Partner</Text>
+               <Text style={styles.linkText}>Become a rider</Text>
             </TouchableOpacity>
           </View>
 

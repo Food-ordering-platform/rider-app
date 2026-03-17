@@ -39,13 +39,13 @@ export const authService = {
       const payload = { ...data, clientType: "mobile" as const };
       const response = await api.post("/auth/login", payload);
       
-      const { token, user, requireOtp } = response.data;
+      const { token, user, requireOtp, refreshToken } = response.data;
 
       if (!token && !requireOtp) {
         throw new Error("No access token or OTP requirement received");
       }
 
-      return { token, user, requireOtp };
+      return { token, user, requireOtp, refreshToken };
     } catch (error: any) {
       logError("Login", error);
       throw error;

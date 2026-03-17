@@ -12,15 +12,28 @@ import {
   VerifyResetOtpPayload,
   VerifyResetOtpResponse
 } from '../../types/auth.types';
+import { toast } from '../../components/ui/Toast';
+import { useEffect, useState } from 'react';
+import { tokenStorage } from '@/utils/storage';
 
 export const useCurrentUser = () => {
+  const [hasToken, setHasToken] = useState(false);
+
+  // Quickly check if a token exists before querying the backend
+  useEffect(() => {
+    tokenStorage.getItem('access_token').then(token => {
+      setHasToken(!!token);
+    });
+  }, []);
+
   return useQuery({
     queryKey: ['currentUser'],
     queryFn: authService.getCurrentUser,
-    retry: false, // Do not retry if 401/Unauthorized
-    staleTime: 1000 * 60 * 5, // Cache user data for 5 mins
+    enabled: hasToken, //  THE FIX: Only run if we actually have a token
+    retry: false, 
+    staleTime: 1000 * 60 * 5, 
   });
-};
+}
 
 export const useLogin = () => {
 
@@ -28,8 +41,11 @@ export const useLogin = () => {
     mutationFn: authService.login,
     onError: (error: any) => {
       const msg = error?.response?.data?.message || error.message || "Login failed";
-      Alert.alert("Login Failed", msg);
+      toast.error("Login Failed", msg);
     },
+    onSuccess: (data) => {
+      toast.success("Welcome back!");
+    }
   });
 };
 
@@ -38,7 +54,10 @@ export const useRegister = () => {
     mutationFn: authService.register,
     onError: (error: any) => {
       const msg = error?.response?.data?.message || error.message || "Registration failed";
-      Alert.alert("Registration Failed", msg);
+      toast.error("Registration Failed", msg);
+    },
+    onSuccess: (data) => {
+      toast.success("Registration Successful");
     },
   });
 };
@@ -48,7 +67,7 @@ export const useVerifyOtp = () => {
     mutationFn: authService.verifyOtp,
     onSuccess: (data) => {
       if (data.success) {
-        console.log("Verification Successful");
+        toast.success("Verification Successful");
       } 
     },
     onError: (error: any) => {
@@ -64,10 +83,10 @@ export const useForgotPassword = () => {
   return useMutation({
     mutationFn: authService.forgotPassword,
     onSuccess: () => {
-      Alert.alert("Email Sent", "Check your inbox for the reset code.");
+      toast.success("Email Sent, Check your inbox for the reset code.");
     },
     onError: (error: any) => {
-      Alert.alert("Error", error?.response?.data?.message || "Could not send email.");
+      toast.error("Error", error?.response?.data?.message || "Could not send email.");
     }
   });
 };
@@ -76,10 +95,10 @@ export const useResetPassword = () => {
   return useMutation({
     mutationFn: authService.resetPassword,
     onSuccess: () => {
-      Alert.alert("Success", "Password reset successfully! Login with your new password.");
+      toast.success("Success, Password reset successfully! Login with your new password.");
     },
     onError: (error: any) => {
-      Alert.alert("Error", "Failed to reset password.");
+      toast.error("Failed to reset password.", error);
     }
   });
 };
@@ -89,7 +108,7 @@ export const useVerifyResetOtp = () => {
     mutationFn: authService.verifyResetOtp,
     onError: (error: any) => {
       const msg = error?.response?.data?.message || error.message || "Invalid or expired code.";
-      Alert.alert("Error", msg);
+      toast.error("Error", msg);
     }
   });
 };
