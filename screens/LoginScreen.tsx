@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { 
   View, Text, TextInput, TouchableOpacity, StyleSheet, 
-  ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Image 
+  ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, Keyboard 
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -18,6 +18,8 @@ export default function LoginScreen({ navigation } : any) {
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
 
   const handleLogin = async () => {
+    Keyboard.dismiss(); // 🟢 Dismiss keyboard before navigating to prevent layout jumps
+
     const result = loginSchema.safeParse({ email, password });
 
     if (!result.success) {
@@ -60,7 +62,13 @@ export default function LoginScreen({ navigation } : any) {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
         style={{ flex: 1 }}
       >
-        <View style={styles.content}>
+        {/* 🟢 CHANGED: Replaced View with ScrollView and updated styling */}
+        <ScrollView 
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled" // Allows buttons to be tapped while keyboard is open
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+        >
           
           {/* LOGO AREA */}
           <View style={styles.headerSection}>
@@ -68,7 +76,6 @@ export default function LoginScreen({ navigation } : any) {
               <Ionicons name="bicycle" size={48} color={COLORS.primary} />
             </View>
             <Text style={[styles.appName]}>Choweazy</Text>
-            {/* 🟢 Replaced "Dispatcher Portal" with "Delivery Partner" */}
             <Text style={styles.roleLabel}>Delivery Rider</Text>
           </View>
 
@@ -140,7 +147,7 @@ export default function LoginScreen({ navigation } : any) {
             </TouchableOpacity>
           </View>
 
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -148,13 +155,14 @@ export default function LoginScreen({ navigation } : any) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'white' },
-  content: { flex: 1, padding: 24, justifyContent: 'center' },
+  // 🟢 CHANGED: flex: 1 to flexGrow: 1. This stops the layout from breaking on Android
+  content: { flexGrow: 1, padding: 24, justifyContent: 'center' },
   
   // Header
   headerSection: { alignItems: 'center', marginBottom: 40 },
   logoCircle: { 
     width: 88, height: 88, borderRadius: 44, 
-    backgroundColor: '#F0F9FF', // Very light blue to match Primary
+    backgroundColor: '#F0F9FF', 
     alignItems: 'center', justifyContent: 'center', marginBottom: 16 
   },
   appName: { fontSize: 30, fontWeight: '800', color: '#111827', letterSpacing: -0.5 },

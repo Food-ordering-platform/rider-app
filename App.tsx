@@ -7,6 +7,8 @@ import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
+import { Toaster } from "./components/ui/Toast";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 // Hooks & Context
 import { usePushNotification } from "./hooks/usePushNotification";
@@ -160,6 +162,7 @@ const NavigationContent = React.memo(function NavigationContent() {
             
             <Stack.Screen name="Login" component={LoginScreen} />
             <Stack.Screen name="SignUp" component={SignupScreen} />
+            <Stack.Screen name="VerifyOtp" component={OtpVerificationScreen} />
             <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
             <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
             <Stack.Screen name="OtpVerification" component={OtpVerificationScreen} />
@@ -174,11 +177,15 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <SafeAreaProvider>
+        <GestureHandlerRootView style={{ flex: 1 }}>
+
         <StatusBar style="dark" backgroundColor="transparent" translucent />
         <AuthProvider>
             <NavigationContent />
-            <PWAInstallBanner />
+            <Toaster />
         </AuthProvider>
+
+        </GestureHandlerRootView>
       </SafeAreaProvider>
     </QueryClientProvider>
   );

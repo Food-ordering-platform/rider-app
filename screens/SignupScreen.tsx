@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -29,56 +28,79 @@ export default function SignupScreen() {
     phone: "",
     address: "",
     password: "",
-    terms:false
+    terms: false,
   });
 
   const [errors, setErrors] = useState<
     Partial<Record<keyof SignupFormData, string>>
   >({});
+  
   const [loading, setLoading] = useState(false);
 
-  const handleChange = (field: keyof SignupFormData, value: string) => {
+  const handleChange = (field: keyof SignupFormData, value: string | boolean) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+    // Clear the error for this specific field when the user modifies it
     if (errors[field]) {
       setErrors((prev) => ({ ...prev, [field]: undefined }));
     }
   };
 
-   if (!formData.terms) {
-      Alert.alert("Terms Required", "Please accept the terms and conditions.");
-      return;
-    }
-
   const handleRegister = async () => {
+    // 1. Run Zod Validation
     const result = signupSchema.safeParse(formData);
 
     if (!result.success) {
+      // 2. Map Zod errors to our state object
       const formattedErrors: any = {};
       result.error.issues.forEach((err: any) => {
         if (err.path[0]) {
           formattedErrors[err.path[0]] = err.message;
         }
       });
+      
       setErrors(formattedErrors);
+      
+      // Show a toast specifically if they forgot the terms, since it's at the bottom
+      if (formattedErrors.terms) {
+        toast.error("Terms Required", formattedErrors.terms);
+      }
       return;
     }
 
     setLoading(true);
     try {
-      const response = await register({
-        ...result.data,
-        role: "RIDER",
+      // 🟢 THE FIX: Send result.data directly! It already contains `terms: true`
+      await register({
+        ...result.data, 
+        role: "RIDER" as const, 
       });
+      
+      toast.success("Success!! Account created! Please verify your email.");
+      navigation.navigate('VerifyOtp', { email: result.data.email });
 
-      toast.success("Success! Account created! Please Verify OTP.");
-      navigation.navigate("OtpVerification", {
-        email: result.data.email,
-      });
     } catch (error: any) {
-      toast.error(
-        "Registration Failed",
-        error?.response?.data?.message || "Could not create account"
-      );
+      // Safely parse array-based backend errors (like the Zod one you just saw)
+      let msg = "Registration failed";
+      const serverError = error.response?.data?.error || error.response?.data?.message;
+      
+      if (typeof serverError === 'string') {
+        try {
+          const parsed = JSON.parse(serverError);
+          if (Array.isArray(parsed) && parsed[0]?.message) {
+             msg = parsed[0].message;
+          } else {
+             msg = serverError;
+          }
+        } catch(e) {
+          msg = serverError;
+        }
+      } else if (serverError) {
+        msg = serverError;
+      } else if (error.message) {
+        msg = error.message;
+      }
+
+      toast.error("Registration Failed", serverError);
     } finally {
       setLoading(false);
     }
@@ -86,7 +108,6 @@ export default function SignupScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* 🟢 FIX 1: Android twitches with behavior="height". Use undefined for Android. */}
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={{ flex: 1 }}
@@ -94,7 +115,7 @@ export default function SignupScreen() {
         <ScrollView
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled" // 🟢 FIX 2: Prevents keyboard jumping when tapping buttons
+          keyboardShouldPersistTaps="handled"
         >
           {/* HEADER */}
           <TouchableOpacity
@@ -122,7 +143,6 @@ export default function SignupScreen() {
                 value={formData.name}
                 onChangeText={(text) => handleChange("name", text)}
               />
-              {/* 🟢 FIX 3: Always render the Text node with a blank space if no error exists */}
               <Text style={styles.errorText}>{errors.name || " "}</Text>
             </View>
 
@@ -178,18 +198,21 @@ export default function SignupScreen() {
               <Text style={styles.errorText}>{errors.password || " "}</Text>
             </View>
 
-             {/* Terms and Conditions */}
+            {/* Terms and Conditions */}
             <View style={styles.termsContainer}>
               <TouchableOpacity 
-                onPress={() => setFormData({...formData, terms: !formData.terms})}
+                onPress={() => handleChange("terms", !formData.terms)}
                 style={styles.checkboxRow}
+                activeOpacity={0.7}
               >
                 <Ionicons 
-                  name={formData.terms ? "checkbox" : "checkbox-outline"} 
-                  size={20} 
-                  color={COLORS.primary || '#000'} 
+                  name={formData.terms ? "checkbox" : "square-outline"} 
+                  size={22} 
+                  color={errors.terms ? "#EF4444" : (COLORS.primary || '#000')} 
                 />
-                <Text style={styles.termsText}>I agree to the Terms and Conditions</Text>
+                <Text style={[styles.termsText, errors.terms && { color: "#EF4444" }]}>
+                  I agree to the Terms and Conditions
+                </Text>
               </TouchableOpacity>
             </View>
 
@@ -224,7 +247,7 @@ const styles = StyleSheet.create({
   content: { padding: 30, paddingBottom: 50 },
   backBtn: { marginBottom: 20 },
 
-  headerSection: { marginBottom: 30 },
+  headerSection: { marginBottom: 20 },
   title: { fontSize: 28, fontWeight: "800", color: COLORS.primary },
   subtitle: { fontSize: 16, color: "#6B7280", marginTop: 5 },
 
@@ -252,7 +275,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FEF2F2",
   },
 
-  // 🟢 The text always renders with a minimum height, so the layout never jumps!
+  // The text always renders with a minimum height, so the layout never jumps!
   errorText: {
     color: "#EF4444",
     fontSize: 12,
@@ -268,7 +291,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 5,
+    marginTop: 15,
     shadowColor: COLORS.primary,
     shadowOpacity: 0.3,
     shadowOffset: { width: 0, height: 5 },
@@ -280,8 +303,10 @@ const styles = StyleSheet.create({
   footer: { flexDirection: "row", justifyContent: "center", marginTop: 30 },
   footerText: { color: "#6B7280" },
   linkText: { color: COLORS.primary, fontWeight: "700" },
+  
   termsContainer: {
-    marginBottom: 16,
+    marginBottom: 10,
+    marginTop: -5,
   },
   checkboxRow: {
     flexDirection: 'row',

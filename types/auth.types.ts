@@ -10,7 +10,7 @@ export interface RegisterData {
   phone: string;
   address: string;          
   role: "DISPATCHER" | "RIDER" | "VENDOR"; 
-  terms: boolean;
+  terms?: boolean;
 }
 
 export interface LoginData {

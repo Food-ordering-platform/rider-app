@@ -1,50 +1,51 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, KeyboardAvoidingView, Platform } from "react-native";
+import { 
+  View, 
+  Text, 
+  TextInput, 
+  TouchableOpacity, 
+  StyleSheet, 
+  ActivityIndicator, 
+  Alert, 
+  KeyboardAvoidingView, 
+  Platform 
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import * as SecureStore from 'expo-secure-store'; // Import this
 import { COLORS } from "../constants/theme";
 
-// Import the hook directly (like Vendor App)
+// Import the hook directly
 import { useVerifyOtp } from "../services/auth/auth.queries";
-import { useAuth } from "../context/authContext";
 
 export default function OtpVerificationScreen({ route, navigation }: any) {
-  const { token: tempToken, email } = route.params || {};
+  const { email } = route.params || {};
   const [code, setCode] = useState("");
   
-  // 1. Use the hook directly
   const { mutateAsync: verifyOtpMutation, isPending } = useVerifyOtp();
-  
-  // 2. Only pull 'refreshUser' from context
-  const { refreshUser } = useAuth();
 
   const handleVerify = async () => {
     if (code.length < 6) return Alert.alert("Error", "Please enter a valid 6-digit code");
- 
-    try {
-      // A. Call the API
-      const response = await verifyOtpMutation({email, code})
 
-      // B. Redirect to login Manually (Like Vendor App)
+    try {
+      // 1. Call the API
+      const response = await verifyOtpMutation({ email, code });
+
+      // 2. Route to Login on Success
       if (response.success) {
-       navigation.navigate('Login');
-       Alert.alert("Verification Successful! You can now Login to continue")
-    // Update the Global State (Context)
-        await refreshUser();
-        
-        // Navigation is automatic via App.tsx when 'user' becomes valid,
-        // but you can safely log to console here.
-        console.log("Verification Successful");
+        Alert.alert(
+          "Verification Successful!", 
+          "Your account is verified. Please log in to continue."
+        );
+        navigation.navigate('Login'); 
       }
     } catch (error: any) {
-       // Error is handled by the mutation onError, but we catch to prevent crash
+       // Error is safely handled by the mutation's onError block
     }
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <View style={styles.content}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
             <Ionicons name="arrow-back" size={24} color={COLORS.primary} />
